@@ -1,0 +1,2 @@
+_SHOULD_LOG_SCOPE = False
+_SHOULD_LOG_STACK = True
