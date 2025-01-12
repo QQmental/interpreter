@@ -1,0 +1,71 @@
+program Main;
+
+var a, b, c : integer;
+var x : integer;
+var y : integer;
+var z : integer;
+var arr : integer[3][4][5];
+
+
+procedure Max(c : integer; a :integer; rrr:REAL)->integer;
+var xxx :integer[a + -- (15 * a - c)];
+begin { Gamma }
+   IF c > a
+      return c
+   else if 1 begin
+      return a;
+   end
+   else begin
+      c += 3;
+      a *= 100;
+      return 5;
+   end;
+
+
+   
+   return a;
+end;
+
+
+
+procedure Gamma(c : integer; a :integer)->integer;
+   var x : integer;
+begin { Gamma }
+   x := a + c;
+   x := 25+19 +x;
+   return 3;
+end;  { Gamma }
+
+procedure Fibo(num : integer)->integer;
+var z : integer;
+begin
+   IF num == 0 || num == 1 begin
+      return 1;
+   end;
+
+   return Fibo(num-1) + Fibo(num-2);
+end;
+
+begin { Main }
+   a := 10[3];
+   x := 0;
+   y := 10;
+   z := 0;
+   if 1 begin
+      Fibo(10);
+      {-Gamma(1, 3);}
+      a := Max(3000, 100, 0.5);
+      WHILE x < 8 && z < 5 begin
+         y += 10;
+         {WHILE a < 10 begin
+            a += 1;
+            break;
+            z += 1;
+         end;}
+         z += 1;
+         x += 1;
+      end;
+   end;
+   a := 3 * --10[5][1][2];
+end.  { Main }
+

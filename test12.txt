@@ -1,0 +1,66 @@
+program Main;
+var aa, aa2, aa3 : BOOL;
+var z : integer;
+var z2 : integer;
+
+procedure Alpha(a : integer; b : integer);
+var x : integer;
+
+   procedure Beta(a : integer; b : integer);
+   var x : integer;
+
+   begin
+      x := a * 10 + b * 2;
+      z := x DIV 3;
+   end;
+
+begin
+   x := (a + b ) * 2;
+
+   Beta(5, 10);      { procedure call }
+end;
+
+begin { Main }
+   aa := FALSE + 1;
+   aa2 := 10 * 0;
+   aa3 := aa2 * -aa;
+   z2 := 10;
+   25+2;
+   Alpha(3 + 5, 7);  { procedure call }
+
+   aa3 := TRUE;
+   z += 3;
+   IF 0
+      z := 5
+   else if 1
+      z := 6;
+      if 155+1
+         z := 12
+      else begin
+         z := 10;
+         z := 11;
+      end
+   ELSE begin
+      z := 7;
+   end;
+
+   IF 0
+      z := 5
+   else if 1
+      z := 6;
+      if 155+1
+         z := 13
+      else begin
+         z := 10;
+         z := 11;
+      end
+   ELSE
+      z := 7
+   ;
+
+   WHILE z2 begin
+      z += 2;
+      z2 -= 1;
+   end
+
+end.  { Main }
