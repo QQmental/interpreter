@@ -18,11 +18,11 @@ class BuiltinTypeSymbol(Symbol):
 
 
 class VarSymbol(Symbol):
-    def __init__(self, name, type:str):
+    def __init__(self, name, type:AST.Type):
         super().__init__(name, type)
 
     def __str__(self):
-        return '<{name}:{type}>'.format(name=self.name, type=self.type)
+        return '<{name}:{type}>'.format(name=self.name, type=self.type.value)
 
     __repr__ = __str__
 

@@ -1,25 +1,17 @@
 program Main;
-<<<<<<< HEAD
 var aa, aa2, aa3 : BOOL;
 var z : integer;
 var z2 : integer;
-=======
->>>>>>> 95e74d7dcaf852afc94fdc4e33e607b4356ed563
 
 procedure Alpha(a : integer; b : integer);
 var x : integer;
 
    procedure Beta(a : integer; b : integer);
    var x : integer;
-<<<<<<< HEAD
 
    begin
       x := a * 10 + b * 2;
       z := x DIV 3;
-=======
-   begin
-      x := a * 10 + b * 2;
->>>>>>> 95e74d7dcaf852afc94fdc4e33e607b4356ed563
    end;
 
 begin
@@ -29,7 +21,6 @@ begin
 end;
 
 begin { Main }
-<<<<<<< HEAD
    aa := FALSE + 1;
    aa2 := 10 * 0;
    aa3 := aa2 * -aa;
@@ -71,9 +62,5 @@ begin { Main }
       z += 2;
       z2 -= 1;
    end
-=======
-
-   Alpha(3 + 5, 7);  { procedure call }
->>>>>>> 95e74d7dcaf852afc94fdc4e33e607b4356ed563
 
 end.  { Main }

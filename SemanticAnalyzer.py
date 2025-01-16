@@ -9,17 +9,6 @@ from Error import Error
 from collections import OrderedDict
 from LogOption import _SHOULD_LOG_SCOPE
 
-"""
-    (nToken.TokenType.MULTIPLY, nToken.TokenType.INTEGER, nToken.TokenType.INTEGER, nToken.TokenType.INTEGER),
-    (nToken.TokenType.MULTIPLY, nToken.TokenType.INTEGER, nToken.TokenType.REAL, nToken.TokenType.REAL),
-    (nToken.TokenType.MULTIPLY, nToken.TokenType.INTEGER, nToken.TokenType.BOOL, nToken.TokenType.INTEGER),
-    (nToken.TokenType.MULTIPLY, nToken.TokenType.REAL, nToken.TokenType.INTEGER, nToken.TokenType.REAL),
-    (nToken.TokenType.MULTIPLY, nToken.TokenType.REAL, nToken.TokenType.REAL, nToken.TokenType.REAL),
-    (nToken.TokenType.MULTIPLY, nToken.TokenType.REAL, nToken.TokenType.BOOL, nToken.TokenType.REAL),
-    (nToken.TokenType.MULTIPLY, nToken.TokenType.BOOL, nToken.TokenType.INTEGER, nToken.TokenType.INTEGER),
-    (nToken.TokenType.MULTIPLY, nToken.TokenType.BOOL, nToken.TokenType.REAL, nToken.TokenType.REAL),
-    (nToken.TokenType.MULTIPLY, nToken.TokenType.BOOL, nToken.TokenType.BOOL, nToken.TokenType.BOOL)     
-"""
 
 BUILTIN_TYPE_BINOP_TABLE = {(nToken.TokenType.PLUS, nToken.TokenType.INTEGER, nToken.TokenType.INTEGER, nToken.TokenType.INTEGER),
                             (nToken.TokenType.PLUS, nToken.TokenType.REAL, nToken.TokenType.REAL, nToken.TokenType.REAL),
@@ -56,6 +45,13 @@ BUILTIN_TYPE_BINOP_TABLE = {(nToken.TokenType.PLUS, nToken.TokenType.INTEGER, nT
                             (nToken.TokenType.GTE, nToken.TokenType.REAL, nToken.TokenType.REAL, nToken.TokenType.REAL),
                             (nToken.TokenType.GTE, nToken.TokenType.BOOL, nToken.TokenType.BOOL, nToken.TokenType.BOOL),
                         }
+
+def define_type_aassignd_method(name:str):
+    if name == TokenType.BOOL.name: #cast the val into a BOOl value
+        return  lambda val : val != 0
+    else:
+        return lambda val : val
+    
 
 class ScopedSymbolTable(object):
     def __init__(self, scope_name, scope_level, ar_type:nNodeVisitor.ARType, parent_scope = None):
@@ -136,7 +132,12 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
         )
 
     def visit_Subscript(self, node):
-        pass
+        if (node.level == 1):
+            if nToken.Compare(node.left.token, nToken.TokenType.IDENTIFIER) == False:
+                self.error(error_code=ErrorCode.UNEXPECTED_TOKEN, token=node.left.token) 
+        
+        self.visit(node.left)
+
 
     def visit_BinOp(self, node):
         if node.op.type == TokenType.PLUS.name:
@@ -188,10 +189,10 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
         node.type = self.detect_type_binop(node.op.type, node.left, node.right)
 
     def visit_Num(self, node):
-        pass
+        return node.value
 
     def visit_BoolVal(self, node):
-        pass
+        return node.value
     
     def visit_UnaryOp(self, node):
         if node.op.type == TokenType.PLUS.name:
@@ -219,19 +220,19 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
             self.visit(node.left)
         elif node.op.value == '+=':
             self.visit(node.right)
-            self.visit(AST.R_Var(node.left.token))
+#            self.visit(AST.R_Var(node.left.token))
             self.visit(node.left)
         elif node.op.value == '-=':
             self.visit(node.right)
-            self.visit(AST.R_Var(node.left.token))
+#            self.visit(AST.R_Var(node.left.token))
             self.visit(node.left)
         elif node.op.value == '*=':
             self.visit(node.right)
-            self.visit(AST.R_Var(node.left.token))
+#            self.visit(AST.R_Var(node.left.token))
             self.visit(node.left)
         elif node.op.value == '/=':
             self.visit(node.right)
-            self.visit(AST.R_Var(node.left.token))
+#            self.visit(AST.R_Var(node.left.token))
             self.visit(node.left)
         else:
             self.error()
@@ -250,10 +251,8 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
         if var_symbol is None:
             self.error(error_code=ErrorCode.ID_NOT_FOUND, token=node.token)
 
-        if var_symbol.type == TokenType.BOOL.name: #cast the val into a BOOl value
-            node.assign_method = lambda val : val != 0
-        else:
-            node.assign_method = lambda val : val
+
+        node.assign_method = define_type_aassignd_method(var_symbol.type.value)
 
     def visit_R_Var(self, node):
         var_name = node.value
@@ -267,9 +266,14 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
                 "Error: access uninitialized variable'%s'" % var_name
             )
         """
+        node.assign_method = define_type_aassignd_method(var_symbol.type)
         node.value_type = var_symbol.type
         
     def visit_NoOp(self, node):
+        pass
+
+    def visit_Enum_def(self, node):
+        print(node.token, len(node.member_pair_list))
         pass
 
     def visit_Declarations(self, node):
@@ -282,12 +286,17 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
         if var_symbol is None:
             self.error(error_code = ErrorCode.ID_NOT_FOUND, token=node.token)
         
+        product = 1
+        
         for dim_size_expr in node.dimension_size_list:
-            self.visit(dim_size_expr)
+            val = self.visit(dim_size_expr)
             if nToken.Compare(dim_size_expr.token, nToken.TokenType.REAL):
                 self.error(error_code = ErrorCode.INVALID_ARRAY_SIZE_REAL_DEF, token=node.token)
-            elif dim_size_expr.value_type == nToken.TokenType.REAL.name:
-                self.error(error_code = ErrorCode.INVALID_ARRAY_SIZE_REAL_DEF, token=node.token)
+
+            product *= val
+        
+        if node.dimension > 0:
+            node.array_len = product
 
     def visit_Control_flow_statement(self, node):
         scope = self.current_scope
@@ -327,7 +336,7 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
                     token=node.var_node.token,
                 )
             
-            var_symbol = Symbol.VarSymbol(var_name, type_symbol.type)
+            var_symbol = Symbol.VarSymbol(var_name, node.type_node)
 
             self.current_scope.insert(var_symbol)
     
@@ -437,10 +446,6 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
             score = 1
             t1 = node_left.value_type
             t2 = node_right.value_type
-            #if nToken.Compare(node_left.token, nToken.TokenType.IDENTIFIER):
-            #    t1 = node_left.type
-            #if nToken.Compare(node_right.token, nToken.TokenType.IDENTIFIER):                
-            #    t2 = node_right.type
 
             if t1 == tup[1].name:
                 score += 1

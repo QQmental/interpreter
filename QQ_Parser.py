@@ -58,12 +58,12 @@ class Parser(object):
         return node
 
 
-    def factor_0(self, left):
+    def factor_0(self, left, level = 1):
         if (nToken.Compare(self.current_token, TokenType.LEFT_BRACKET)):
             self.eat(TokenType.LEFT_BRACKET)
             inside = self.expr()
             self.eat(TokenType.RIGHT_BRACKET)
-            return self.factor_0(AST.Subscript(left, inside))
+            return self.factor_0(AST.Subscript(left, inside, level), level+1)
         else:
             return left
 
@@ -207,11 +207,11 @@ class Parser(object):
 
         return node
 
-    def assignment_statement(self):
+    def assignment_statement(self, left):
         """
         assignment_statement : L_variable ASSIGN expr
         """
-        left = self.L_variable()
+#        left = self.L_variable()
         token = self.current_token
         self.eat(TokenType.ASSIGN)
         right = self.expr()
@@ -260,10 +260,16 @@ class Parser(object):
         elif nToken.Compare(token, TokenType.WHILE):
             node = self.WhileBlock()
         elif nToken.Compare(token, TokenType.IDENTIFIER):
-            if self.lexer.overlook_token(0).type == TokenType.ASSIGN.name:
-                node = self.assignment_statement()
+            left = self.expr()
+            if nToken.Compare(self.current_token, nToken.TokenType.ASSIGN):
+                op = self.current_token     
+                node = left
+                self.eat(TokenType.ASSIGN)
+                right = self.expr()
+                node = AST.Assign(left, op, right)
             else:
-                node = self.expr()
+                node = left
+
         elif nToken.Compare(token, TokenType.BREAK):
             self.eat(TokenType.BREAK)
             node = AST.Control_flow_statement(token, AST.Control_flow_statement.control_type.BREAK)
@@ -417,37 +423,40 @@ class Parser(object):
                 var_decl = self.variable_declaration()
                 declarations.append(var_decl)
                 self.eat(TokenType.SEMI)
-        declarations.extend(self.procedure_declarations())
+        while True:
+            if nToken.Compare(self.current_token, TokenType.PROCEDURE):
+                declarations.append(self.procedure_declarations())
+            elif nToken.Compare(self.current_token, TokenType.ENUM):
+                declarations.append(self.enum_declaration()) 
+            else:
+                break              
         return AST.Declarations(declarations)
 
 
     def procedure_declarations(self):
-        proc_declarations = []
-        while self.current_token.type == TokenType.PROCEDURE.name:
-            self.eat(TokenType.PROCEDURE)
-            procedure_name = self.variable()
-            
-            param_list = []
-            if self.current_token.type == TokenType.LPAREN.name:# parse parameters
-                self.eat(TokenType.LPAREN)
-                if self.current_token.type != TokenType.RPAREN.name:
-                    param_list = self.formal_parameter_list()
-                self.eat(TokenType.RPAREN)                  # complete parsing parameters
-            
-            
-            #parse return value type, if no 'return type' is represented, then 
-            # return type is void 
-            if nToken.Compare(self.current_token, TokenType.RIGHT_ARROW): 
-                self.eat(TokenType.RIGHT_ARROW)
-                return_type = self.type_spec()
-            else:
-                return_type = AST.Type(nToken.Token(TokenType.VOID.name, "VOID", lineno=-1, column=-1))
+        self.eat(TokenType.PROCEDURE)
+        procedure_name = self.variable()
+        
+        param_list = []
+        if self.current_token.type == TokenType.LPAREN.name:# parse parameters
+            self.eat(TokenType.LPAREN)
+            if self.current_token.type != TokenType.RPAREN.name:
+                param_list = self.formal_parameter_list()
+            self.eat(TokenType.RPAREN)                  # complete parsing parameters
+        
+        #parse return value type, if no 'return type' is represented, then 
+        # return type is void 
+        if nToken.Compare(self.current_token, TokenType.RIGHT_ARROW): 
+            self.eat(TokenType.RIGHT_ARROW)
+            return_type = self.type_spec()
+        else:
+            return_type = AST.Type(nToken.Token(TokenType.VOID.name, "VOID", lineno=-1, column=-1))
 
-            self.eat(TokenType.SEMI)
-            block_node = self.block()
-            self.eat(TokenType.SEMI)
-            proc_declarations.append(AST.ProcedureDecl(procedure_name, param_list, return_type, block_node))
-        return proc_declarations
+        self.eat(TokenType.SEMI)
+        block_node = self.block()
+        self.eat(TokenType.SEMI)
+        return AST.ProcedureDecl(procedure_name, param_list, return_type, block_node)
+
 
     def proccall_statement(self):
         """proccall_statement : ID LPAREN (expr (COMMA expr)*)? RPAREN"""
@@ -472,6 +481,41 @@ class Parser(object):
         )
         return node
 
+
+    def enum_declaration(self):
+        member_pair_list = []
+        self.eat(TokenType.ENUM)
+        if nToken.Compare(self.current_token, nToken.TokenType.IDENTIFIER) == False:
+            self.error(error_code=ErrorCode.UNEXPECTED_TOKEN, token=self.current_token)
+        enum_name_token = self.current_token
+        self.eat(nToken.TokenType.IDENTIFIER)
+        self.eat(nToken.TokenType.BEGIN)
+        while nToken.Compare(self.current_token, nToken.TokenType.IDENTIFIER):
+            member_token = self.current_token
+            val = None
+            self.eat(nToken.TokenType.IDENTIFIER)
+
+            if nToken.Compare(self.current_token, nToken.TokenType.ASSIGN):
+                if self.current_token.value != ':=':
+                    self.error(error_code=ErrorCode.UNEXPECTED_TOKEN, token=self.current_token)
+                self.eat(nToken.TokenType.ASSIGN)
+                if nToken.Compare(self.current_token, nToken.TokenType.INTEGER) == False:
+                    self.error(error_code=ErrorCode.UNEXPECTED_TOKEN, token=self.current_token)
+                val  = AST.Num(self.current_token, nToken.TokenType.INTEGER)
+                self.eat(nToken.TokenType.INTEGER)
+            #tup = tuple(member_token, val)
+            member_pair_list.append((member_token, val))
+            if nToken.Compare(self.current_token, nToken.TokenType.COMMA):
+                self.eat(nToken.TokenType.COMMA)
+            else:
+                break
+        
+        if len(member_pair_list) == 0:
+            self.error(error_code=ErrorCode.INVALID_ENUM_BODY_DEF, token=enum_name_token)
+        self.eat(nToken.TokenType.END)
+        self.eat(TokenType.SEMI)
+
+        return AST.Enum_def(enum_name_token, member_pair_list)
 
     def block(self):
         """block : declarations compound_statement"""
@@ -500,8 +544,9 @@ class Parser(object):
 
 
     declarations : VAR (variable_declaration SEMI)+
-                    | (PROCEDURE ID (LPAREN formal_parameter_list RPAREN)? SEMI block SEMI)*
-                    | empty
+                 | (PROCEDURE ID (LPAREN formal_parameter_list RPAREN)? SEMI block SEMI)*
+                 | ENUM ID begin ID (ASSIGN Num) (COMMA ID (ASSIGN NUM))* (COMMA) end
+                 | empty
 
 
     variable_declaration : ID (COMMA ID)* COLON type_spec

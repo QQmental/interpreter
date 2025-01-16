@@ -11,6 +11,7 @@ class ErrorCode(Enum):
     INVALID_TYPE_OF_OBJ_DECLARATION = 'void object is not allowed'
     ASSIGNED_WITH_VOID = str.format("return value has type void, can't be used as a rvalue")
     INVALID_ARRAY_SIZE_REAL_DEF = 'array size defined with a real number is not allowed '
+    INVALID_ENUM_BODY_DEF = 'member of enum should be greater than 0'
 
 class Error(Exception):
     def __init__(self, error_code=None, token=None, message=None):

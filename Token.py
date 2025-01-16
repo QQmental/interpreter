@@ -47,6 +47,7 @@ class TokenType(Enum):
     VAR = 'VAR'
     TRUE = 'TRUE'
     FALSE = 'FALSE'
+    ENUM = 'ENUM'
     #misc
     IDENTIFIER = 'IDENTIFIER'
     ASSIGN = ':='
@@ -56,7 +57,7 @@ RESERVED_KEYWORDS = [TokenType.INTEGER,     TokenType.REAL,   TokenType.BOOL,   
                      TokenType.INTEGER_DIV, TokenType.BEGIN,  TokenType.END,    TokenType.PROGRAM, 
                      TokenType.PROCEDURE,   TokenType.IF,     TokenType.ELSE,   TokenType.WHILE,
                      TokenType.CONTINUE,    TokenType.BREAK,  TokenType.RETURN, TokenType.VAR,  
-                     TokenType.TRUE,        TokenType.FALSE]
+                     TokenType.TRUE,        TokenType.FALSE,  TokenType.ENUM]
 
 BUILTIN_TYPES = [TokenType.INTEGER, TokenType.REAL, TokenType.BOOL, TokenType.VOID]
 

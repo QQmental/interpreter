@@ -24,10 +24,14 @@ class UnaryOp(ValueNode):
         self.value_type = ""
 
 class Subscript(ValueNode):
-    def __init__(self, left, expr):
+    get_value_func = None
+    def __init__(self, left, expr, level):
         self.left = left        
         self.inside = expr
         self.value_type = ""
+        self.level = level
+        self.value = "z"
+
 
 
 class Num(ValueNode):
@@ -80,11 +84,12 @@ class L_Var(AST):
 
 class R_Var(ValueNode):
     """The Var node is constructed out of ID token."""
-    def __init__(self, token):
+    def __init__(self, token, assign_method = None):
         self.token = token
         # value is the name of this varriable
         self.value = token.value 
 
+        self.assign_method = assign_method
 
 class Type(AST):
     def __init__(self, token:nToken.Token, dimension:int, dimension_size_list):
@@ -92,6 +97,13 @@ class Type(AST):
         self.value = token.value
         self.dimension = dimension
         self.dimension_size_list = dimension_size_list
+        self.array_len = 0
+
+class Enum_def(AST):
+    def __init__(self, token:nToken.Token, member_pair_list):
+        self.token = token
+        self.member_pair_list = member_pair_list
+
 
 #id_list:list[Var], type_node:Type
 class VARs_decl(AST):

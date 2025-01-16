@@ -1,0 +1,73 @@
+program Main;
+var aa, aa2, aa3 : BOOL;
+var z1, z2, z3, sum : integer;
+var arr : integer[3][3][3];
+
+procedure Max(c : integer; a :integer; rrr:REAL)->integer;
+var xxx :integer[3];
+begin { Gamma }
+   IF c > a
+      return c
+   else if 1 begin
+      return a;
+   end
+   else begin
+      c += 3;
+      a *= 100;
+      return 5;
+   end;
+
+   return a;
+end;
+
+Enum MyEnum begin
+   mb,
+   mb2 := 1,
+   mb3,
+end;
+
+procedure Max2(c : integer; a :integer; rrr:REAL)->integer;
+var xxx :integer[5];
+begin { Gamma }
+   IF c > a
+      return c
+   else if 1 begin
+      return a;
+   end
+   else begin
+      c += 3;
+      a *= 100;
+      return 5;
+   end;
+
+   return a;
+end;
+
+Enum MyEnum2 begin
+   mb,
+   mb2 := 1,
+   mb3,
+end;
+
+begin { Main }
+   sum := 0;
+   z1 := 0;
+   z2 := 0;
+   z3 := 0;
+
+   while z1 < 3 begin
+      z2 := 0;
+      while z2 < 3 begin
+         z3 := 0;
+         while z3 < 3 begin
+            sum += 1;
+            arr[z1][z2][z3] += 1;
+            z3 += 1;
+         end;
+         z2 += 1;
+      end;
+      z1 += 1;
+   end;
+   aa := FALSE;
+
+end.  { Main }

@@ -21,8 +21,6 @@ begin { Gamma }
       return 5;
    end;
 
-
-   
    return a;
 end;
 
@@ -54,7 +52,7 @@ begin { Main }
    if 1 begin
       Fibo(10);
       {-Gamma(1, 3);}
-      a := Max(3000, 100, 0.5);
+      a := Max(Fibo(20), 100, 0.5);
       WHILE x < 8 && z < 5 begin
          y += 10;
          {WHILE a < 10 begin
@@ -66,6 +64,5 @@ begin { Main }
          x += 1;
       end;
    end;
-   a := 3 * --10[5][1][2];
 end.  { Main }
 
