@@ -10,8 +10,9 @@ class ErrorCode(Enum):
     UNMATCHED_RETURN_VALUE = 'return value type is not compatible'
     INVALID_TYPE_OF_OBJ_DECLARATION = 'void object is not allowed'
     ASSIGNED_WITH_VOID = str.format("return value has type void, can't be used as a rvalue")
-    INVALID_ARRAY_SIZE_REAL_DEF = 'array size defined with a real number is not allowed '
+    INVALID_ARRAY_SIZE_DEF = 'invalid array size defined'
     INVALID_ENUM_BODY_DEF = 'member of enum should be greater than 0'
+    UNKNOWN_ENUM_MEMBER = 'unknown access of a enum member'
 
 class Error(Exception):
     def __init__(self, error_code=None, token=None, message=None):

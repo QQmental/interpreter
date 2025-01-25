@@ -3,18 +3,8 @@ import NodeVisitor as nNodeVisitor
 from Token import TokenType
 from collections import OrderedDict
 import AST
-
-class ValueObject:
-    def __init__(self, setter, getter, value = None):
-        self.setter_fn = setter
-        self.getter_fn = getter
-        self.value = value
-
-    def setter(self, val):
-        self.setter_fn(self, val)
+import ValueObject as nVO
     
-    def getter(self):
-        return self.getter_fn(self)
 
 class CallStack:
     def __init__(self):
@@ -124,40 +114,42 @@ class Interpreter(nNodeVisitor.NodeVisitor):
         def getter(val_obj):
             return ar[var_name][sum]
 
-        return ValueObject(setter, getter)       
+        return nVO.ValueObject(setter, getter)       
 
 
     def visit_BinOp(self, node):
         if node.op.type == TokenType.PLUS.name:
-            return self.visit(node.left).getter() + self.visit(node.right).getter()
+            value = self.visit(node.left).getter() + self.visit(node.right).getter()
         elif node.op.type == TokenType.MINUS.name:
-            return self.visit(node.left).getter() - self.visit(node.right).getter()
+            value = self.visit(node.left).getter() - self.visit(node.right).getter()
         elif node.op.type == TokenType.MULTIPLY.name:
-            return self.visit(node.left).getter() * self.visit(node.right).getter()
+            value = self.visit(node.left).getter() * self.visit(node.right).getter()
         elif node.op.type == TokenType.INTEGER_DIV.name:
-            return self.visit(node.left).getter() // self.visit(node.right).getter()
+            value = self.visit(node.left).getter() // self.visit(node.right).getter()
         elif node.op.type == TokenType.FLOAT_DIV.name:
-            return float(self.visit(node.left).getter()) / float(self.visit(node.right).getter())
+            value = float(self.visit(node.left).getter()) / float(self.visit(node.right).getter())
         elif node.op.type == TokenType.LOGIC_AND.name:
-            return self.visit(node.left).getter() and self.visit(node.right).getter()
+            value = self.visit(node.left).getter() and self.visit(node.right).getter()
         elif node.op.type == TokenType.LOGIC_OR.name:
-            return self.visit(node.left).getter() or self.visit(node.right).getter()
+            value = self.visit(node.left).getter() or self.visit(node.right).getter()
         elif node.op.type == TokenType.BIT_XOR.name:
-            pass #not implemented
+            #not implemented
             self.visit(node.left).getter()
             self.visit(node.right).getter()
+            value = 0
         elif node.op.type == TokenType.EQUAL.name:
-            return self.visit(node.left).getter() == self.visit(node.right).getter()
+            value = self.visit(node.left).getter() == self.visit(node.right).getter()
         elif node.op.type == TokenType.INEQUAL.name:
-            return self.visit(node.left).getter() != self.visit(node.right).getter()  
+            value = self.visit(node.left).getter() != self.visit(node.right).getter()  
         elif node.op.type == TokenType.LTE.name:
-            return self.visit(node.left).getter() <= self.visit(node.right).getter()
+            value = self.visit(node.left).getter() <= self.visit(node.right).getter()
         elif node.op.type == TokenType.LT.name:
-            return self.visit(node.left).getter() < self.visit(node.right).getter()
+            value = self.visit(node.left).getter() < self.visit(node.right).getter()
         elif node.op.type == TokenType.GTE.name:
-            return self.visit(node.left).getter() >= self.visit(node.right).getter()
+            value = self.visit(node.left).getter() >= self.visit(node.right).getter()
         elif node.op.type == TokenType.GT.name:
-            return self.visit(node.left).getter() > self.visit(node.right).getter()
+            value = self.visit(node.left).getter() > self.visit(node.right).getter()
+        return nVO.ValueObject(nVO.ValueObject.just_set, nVO.ValueObject.just_get, value)
 
     def visit_Num(self, node):
         def setter(val_obj, val):
@@ -166,8 +158,7 @@ class Interpreter(nNodeVisitor.NodeVisitor):
         def getter(val_obj):
             return val_obj.value
 
-        return ValueObject(setter, getter, node.value)
-        #return node.value
+        return nVO.ValueObject(setter, getter, node.value)
 
     def visit_BoolVal(self, node):   
         def setter(val_obj, val):
@@ -175,8 +166,8 @@ class Interpreter(nNodeVisitor.NodeVisitor):
         def getter(val_obj):
             return val_obj.value
         
-        return ValueObject(setter, getter, node.value)
-        #return node.value
+        return nVO.ValueObject(setter, getter, node.value)
+
 
     def visit_UnaryOp(self, node):
         val_obj = self.visit(node.expr)
@@ -209,36 +200,23 @@ class Interpreter(nNodeVisitor.NodeVisitor):
                 val_obj.setter(val_obj.getter() * right_val)
             elif node.op.value == '/=':
                 val_obj.setter(val_obj.getter() / right_val)                                
-
-
+    
     def visit_Var(self, node):
         var_name = node.value
-        ar = self.call_stack.lookup(var_name)
-        return ar[var_name]
-
-    def visit_L_Var(self, node):
-        var_name = node.value
-        ar = self.call_stack.lookup(var_name)
 
         def setter(val_obj, val):
+            ar = self.call_stack.lookup(var_name)
             ar[var_name] = node.assign_method(val)
 
         def getter(val_obj):
+            ar = self.call_stack.lookup(var_name)
             return ar[var_name]
         
-        return ValueObject(setter, getter)
-    
-    def visit_R_Var(self, node):
-        var_name = node.value
-        ar = self.call_stack.lookup(var_name)
+        return nVO.ValueObject(setter, getter)
 
-        def setter(val_obj, val):
-            ar[var_name] = node.assign_method(val)
+    def visit_MemberAccess(self, node):
+        return node.get_val_obj()
 
-        def getter(val_obj):
-            return ar[var_name]
-        
-        return ValueObject(setter, getter)
 
     def visit_NoOp(self, node):
         pass
@@ -307,7 +285,7 @@ class Interpreter(nNodeVisitor.NodeVisitor):
                 break
         
     def visit_WhileBlock(self, node):
-        while self.visit(node.condition) != False:
+        while self.visit(node.condition).getter() != False:
             self.log(f'ENTER: WHILE {node.token}')
             ar = ActivationRecord(
                 name = node.token,
@@ -343,7 +321,7 @@ class Interpreter(nNodeVisitor.NodeVisitor):
         procedure = node.ref_procedure
 
         for idx, para_node in enumerate(procedure.params):
-            ar[para_node.name] = self.visit(node.actual_params[idx])
+            ar[para_node.name] = self.visit(node.actual_params[idx]).getter()
 
         self.call_stack.push(ar)
         self.visit(procedure.block_node)
@@ -353,9 +331,9 @@ class Interpreter(nNodeVisitor.NodeVisitor):
         self.log(f'LEAVE: PROCEDURE {node.proc_name}')
         self.log(str(self.call_stack))
         return_value = self.call_stack.top().return_value
-        self.call_stack.pop()
-    
-        return return_value # TODO: add real return value support
+        self.call_stack.pop()    
+
+        return return_value
 
     def visit_Program(self, node):
         self.program_name = node.name

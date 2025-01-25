@@ -59,6 +59,13 @@ class NoOp(AST):
     pass
 
 
+class MemberAccess(ValueNode):
+    def __init__(self, dot_token, left, right):
+        self.token = dot_token
+        self.left = left
+        self.right = right
+        self.get_val_obj = None
+
 class Assign(AST):
     def __init__(self, left, op, right):
         self.left = left
@@ -68,28 +75,12 @@ class Assign(AST):
 
 class Var(AST):
     """The Var node is constructed out of ID token."""
-    def __init__(self, token):
-        self.token = token
-        # value is the name of this varriable
-        self.value = token.value 
-
-class L_Var(AST):
-    """The Var node is constructed out of ID token."""
     def __init__(self, token, assign_method = None):
         self.token = token
         # value is the name of this varriable
         self.value = token.value 
-
         self.assign_method = assign_method
 
-class R_Var(ValueNode):
-    """The Var node is constructed out of ID token."""
-    def __init__(self, token, assign_method = None):
-        self.token = token
-        # value is the name of this varriable
-        self.value = token.value 
-
-        self.assign_method = assign_method
 
 class Type(AST):
     def __init__(self, token:nToken.Token, dimension:int, dimension_size_list):
@@ -99,8 +90,9 @@ class Type(AST):
         self.dimension_size_list = dimension_size_list
         self.array_len = 0
 
-class Enum_def(AST):
+class Enum_def(ValueNode):
     def __init__(self, token:nToken.Token, member_pair_list):
+        super().__init__(nToken.TokenType.ENUM.name)
         self.token = token
         self.member_pair_list = member_pair_list
 
@@ -151,8 +143,6 @@ class Control_flow_statement(AST):
         self.token = token
         self.type = type
         self.return_val = return_val
-
-
 
 class Param(AST):
     def __init__(self, var_node, type_node):

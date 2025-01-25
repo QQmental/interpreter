@@ -41,22 +41,19 @@ class Parser(object):
         self.eat(TokenType.IDENTIFIER)
         return node
 
-    def L_variable(self):
-        """
-        L_variable : ID
-        """
-        node = AST.L_Var(self.current_token)
-        self.eat(TokenType.IDENTIFIER)
-        return node
+    def ID_chain(self):
+        self.eat(nToken.TokenType.DOT)
 
-    def R_variable(self):
-        """
-        R_variable : ID
-        """
-        node = AST.R_Var(self.current_token)
-        self.eat(TokenType.IDENTIFIER)
-        return node
-
+        if nToken.Compare(self.current_token, nToken.TokenType.IDENTIFIER) == False:
+            self.error(error_code=ErrorCode.UNEXPECTED_TOKEN, token=self.current_token)
+        
+        var = self.variable()
+        var = self.factor_0(var)
+        
+        if nToken.Compare(self.current_token, nToken.TokenType.DOT):
+            return AST.MemberAccess(self.current_token, var, self.ID_chain())
+        else:
+            return AST.MemberAccess(self.current_token, var, None)
 
     def factor_0(self, left, level = 1):
         if (nToken.Compare(self.current_token, TokenType.LEFT_BRACKET)):
@@ -74,7 +71,7 @@ class Parser(object):
            | FALSE(subscript) 
            | (unary)factor1 
            | (expr) 
-           | R_variable (subscript) 
+           | R_variable (subscript)(DOT ID)* 
            | function call (subscript) """
         
         token = self.current_token
@@ -106,11 +103,18 @@ class Parser(object):
             return self.factor_0(node)
         elif self.lexer.current_char == TokenType.LPAREN.value:
             node = self.proccall_statement()
-            return self.factor_0(node)
+            node = self.factor_0(node)
+            token = self.current_token
+            if nToken.Compare(token, nToken.TokenType.DOT):
+                node = AST.MemberAccess(token, node, self.ID_chain())
+            return node
         else:
-            return self.factor_0(self.R_variable())
-
-    
+            node = self.factor_0(self.variable())
+            token = self.current_token
+            if nToken.Compare(token, nToken.TokenType.DOT):
+                node = AST.MemberAccess(token, node, self.ID_chain())
+            return node
+            
     def factor2(self):
         """factor2 : factor1 ((MUL | INTEGER_DIV | FLOAT_DIV) factor1)*"""
         node = self.factor1()
@@ -417,15 +421,24 @@ class Parser(object):
 
     def declarations(self):
         declarations = []
-        while self.current_token.type == TokenType.VAR.name:
+        """while self.current_token.type == TokenType.VAR.name:
             self.eat(TokenType.VAR)
             while self.current_token.type == TokenType.IDENTIFIER.name:
                 var_decl = self.variable_declaration()
                 declarations.append(var_decl)
                 self.eat(TokenType.SEMI)
+            """
         while True:
-            if nToken.Compare(self.current_token, TokenType.PROCEDURE):
+            if self.current_token.type == TokenType.VAR.name:
+                self.eat(TokenType.VAR)
+                while self.current_token.type == TokenType.IDENTIFIER.name:
+                    var_decl = self.variable_declaration()
+                    declarations.append(var_decl)
+                    self.eat(TokenType.SEMI)
+
+            elif nToken.Compare(self.current_token, TokenType.PROCEDURE):
                 declarations.append(self.procedure_declarations())
+
             elif nToken.Compare(self.current_token, TokenType.ENUM):
                 declarations.append(self.enum_declaration()) 
             else:
@@ -450,7 +463,9 @@ class Parser(object):
             self.eat(TokenType.RIGHT_ARROW)
             return_type = self.type_spec()
         else:
-            return_type = AST.Type(nToken.Token(TokenType.VOID.name, "VOID", lineno=-1, column=-1))
+            return_type = AST.Type(nToken.Token(TokenType.VOID.name, "VOID", lineno=-1, column=-1),
+                                   0,
+                                   [])
 
         self.eat(TokenType.SEMI)
         block_node = self.block()
@@ -499,11 +514,9 @@ class Parser(object):
                 if self.current_token.value != ':=':
                     self.error(error_code=ErrorCode.UNEXPECTED_TOKEN, token=self.current_token)
                 self.eat(nToken.TokenType.ASSIGN)
-                if nToken.Compare(self.current_token, nToken.TokenType.INTEGER) == False:
-                    self.error(error_code=ErrorCode.UNEXPECTED_TOKEN, token=self.current_token)
-                val  = AST.Num(self.current_token, nToken.TokenType.INTEGER)
-                self.eat(nToken.TokenType.INTEGER)
-            #tup = tuple(member_token, val)
+                
+                val = self.expr()
+            
             member_pair_list.append((member_token, val))
             if nToken.Compare(self.current_token, nToken.TokenType.COMMA):
                 self.eat(nToken.TokenType.COMMA)

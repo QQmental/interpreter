@@ -44,3 +44,13 @@ class ProcedureSymbol(Symbol):
         )
 
     __repr__ = __str__
+
+class EnumSymbol(Symbol):
+    def __init__(self, name, type:AST.Enum_def, member_set):
+        super().__init__(name, type)
+        self.member_set = member_set
+
+    def __str__(self):
+        return '<{name}:{type}>'.format(name=self.name, type=self.type.token)
+
+    __repr__ = __str__

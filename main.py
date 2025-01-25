@@ -8,7 +8,7 @@ from Interpreter import Interpreter
 def main():
     
     import sys
-    text = open('./test11.txt', 'r').read()
+    text = open('./test13.txt', 'r').read()
 
     lexer = Lexer(text)
     try:
