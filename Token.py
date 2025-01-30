@@ -9,6 +9,8 @@ class TokenType(Enum):
     MINUS = '-'
     MULTIPLY = '*'
     FLOAT_DIV = '/'
+    SINGLE_QUOTE = '\''
+    DOUBLE_QUOTE = '\"'
     DOT = '.'
     LPAREN = '('
     RPAREN = ')'
@@ -26,12 +28,15 @@ class TokenType(Enum):
     GTE = '>='
     GT = '>'
     RIGHT_ARROW = '->'
+    LEFT_ARROW = '<-'
     LEFT_BRACKET = '['
     RIGHT_BRACKET = ']'
     # block of reserved words
     INTEGER = 'INTEGER'
     REAL = 'REAL'
     BOOL = 'BOOL'
+    CHAR = 'CHAR'
+    STRING = 'STRING'
     VOID = 'VOID'
     INTEGER_DIV = 'DIV'
     BEGIN = 'BEGIN'
@@ -53,13 +58,14 @@ class TokenType(Enum):
     ASSIGN = ':='
     EOF = 'EOF'
 
-RESERVED_KEYWORDS = [TokenType.INTEGER,     TokenType.REAL,   TokenType.BOOL,   TokenType.VOID, 
-                     TokenType.INTEGER_DIV, TokenType.BEGIN,  TokenType.END,    TokenType.PROGRAM, 
-                     TokenType.PROCEDURE,   TokenType.IF,     TokenType.ELSE,   TokenType.WHILE,
-                     TokenType.CONTINUE,    TokenType.BREAK,  TokenType.RETURN, TokenType.VAR,  
-                     TokenType.TRUE,        TokenType.FALSE,  TokenType.ENUM]
+RESERVED_KEYWORDS = [TokenType.INTEGER, TokenType.REAL,        TokenType.BOOL,        TokenType.VOID, 
+                     TokenType.CHAR,    TokenType.STRING,      TokenType.INTEGER_DIV, TokenType.BEGIN, 
+                     TokenType.END,     TokenType.PROGRAM,     TokenType.PROCEDURE,   TokenType.IF,
+                     TokenType.ELSE,    TokenType.WHILE,       TokenType.CONTINUE,    TokenType.BREAK, 
+                     TokenType.RETURN,  TokenType.VAR,         TokenType.TRUE,        TokenType.FALSE, 
+                     TokenType.ENUM]
 
-BUILTIN_TYPES = [TokenType.INTEGER, TokenType.REAL, TokenType.BOOL, TokenType.VOID]
+BUILTIN_TYPES = [TokenType.INTEGER, TokenType.REAL, TokenType.BOOL, TokenType.VOID, TokenType.CHAR, TokenType.STRING, TokenType.ENUM]
 
 class Token(object):
     def __init__(self, type:str, value, lineno=None, column=None):

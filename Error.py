@@ -13,6 +13,7 @@ class ErrorCode(Enum):
     INVALID_ARRAY_SIZE_DEF = 'invalid array size defined'
     INVALID_ENUM_BODY_DEF = 'member of enum should be greater than 0'
     UNKNOWN_ENUM_MEMBER = 'unknown access of a enum member'
+    PARAMETER_TYPE_MISMATCHED = 'parameter mismatched'
 
 class Error(Exception):
     def __init__(self, error_code=None, token=None, message=None):

@@ -4,6 +4,7 @@ import Token as nToken
 from Token import TokenType
 from Lexer import Lexer
 import AST
+import TypeDescriptor as nTDs
 
 class Parser(object):
     program_name = ''
@@ -69,6 +70,7 @@ class Parser(object):
            | real(subscript) 
            | TRUE(subscript) 
            | FALSE(subscript) 
+           | DOUBLE_QUOTE(*)DOUBLE_QUOTE
            | (unary)factor1 
            | (expr) 
            | R_variable (subscript)(DOT ID)* 
@@ -77,16 +79,22 @@ class Parser(object):
         token = self.current_token
         if token.type == TokenType.INTEGER.name:
             self.eat(TokenType.INTEGER)
-            return self.factor_0(AST.Num(token, TokenType.INTEGER.name))
+            return self.factor_0(AST.Num(token, nTDs.TypeDescriptor.TypeClass.INTEGER))
         elif token.type == TokenType.REAL.name:
             self.eat(TokenType.REAL)
-            return self.factor_0(AST.Num(token, TokenType.REAL.name))
+            return self.factor_0(AST.Num(token, nTDs.TypeDescriptor.TypeClass.REAL))
         elif token.type == TokenType.TRUE.name:
             self.eat(TokenType.TRUE)
             return self.factor_0(AST.BoolVal(token))
         elif token.type == TokenType.FALSE.name:
             self.eat(TokenType.FALSE)
             return self.factor_0(AST.BoolVal(token))
+        elif token.type == TokenType.STRING.name:
+            self.eat(TokenType.STRING)
+            return AST.StringVal(token)
+        elif token.type == TokenType.CHAR.name:
+            self.eat(TokenType.CHAR)
+            return AST.CharVal(token)
         elif token.type == TokenType.PLUS.name:
             self.eat(TokenType.PLUS)
             return AST.UnaryOp(token, self.factor1())
@@ -223,7 +231,7 @@ class Parser(object):
         return node
 
     def empty(self):
-        return AST.NoOp()
+        return AST.NoOp(self.current_token)
 
     def if_statement(self):
         """
@@ -360,23 +368,26 @@ class Parser(object):
             if type_name == builtin_type.value:
                 self.eat(builtin_type)
                 is_builtin = True
+                break
         
-        if is_builtin == False:
+        if type_name == nToken.TokenType.ENUM.name:
+            token = self.current_token
+            self.eat(nToken.TokenType.IDENTIFIER)
+        elif is_builtin == False:
             if nToken.Compare(token, TokenType.IDENTIFIER) == False:
                 self.error()
             else:
                 self.eat(TokenType.IDENTIFIER)
-        dim_size = 0
-        dim_size_list = []
+
+        dim_size_expr_list = []
         while nToken.Compare(self.current_token, nToken.TokenType.LEFT_BRACKET):
             self.eat(nToken.TokenType.LEFT_BRACKET)
-            dim_size_list.append(self.expr())
-            dim_size += 1
+            dim_size_expr_list.append(self.expr())
             self.eat(nToken.TokenType.RIGHT_BRACKET)
-        return AST.Type(token, dim_size, dim_size_list)
+        return AST.Type(token, dim_size_expr_list)
         
     def variable_declaration(self):
-        """variable_declaration : ID (COMMA ID)* COLON type_spec"""
+        """variable_declaration : ID (COMMA ID)* COLON type_spec (:= expr)"""
         var_list = [AST.Var(self.current_token)]  # first ID
 
         self.eat(TokenType.IDENTIFIER)
@@ -386,8 +397,13 @@ class Parser(object):
             self.eat(TokenType.IDENTIFIER)
         self.eat(TokenType.COLON)
         t = self.type_spec()
-    
-        return AST.VARs_decl(var_list, t)
+
+        if nToken.Compare(self.current_token, nToken.TokenType.ASSIGN) and self.current_token.value == ':=':
+            self.eat(nToken.TokenType.ASSIGN)
+            init_val = self.expr()
+            return AST.VARsDecl(var_list, t, init_val)
+        else:
+            return AST.VARsDecl(var_list, t)
 
     def formal_parameters(self):
         """ formal_parameters : ID (COMMA ID)* COLON type_spec """
@@ -421,13 +437,6 @@ class Parser(object):
 
     def declarations(self):
         declarations = []
-        """while self.current_token.type == TokenType.VAR.name:
-            self.eat(TokenType.VAR)
-            while self.current_token.type == TokenType.IDENTIFIER.name:
-                var_decl = self.variable_declaration()
-                declarations.append(var_decl)
-                self.eat(TokenType.SEMI)
-            """
         while True:
             if self.current_token.type == TokenType.VAR.name:
                 self.eat(TokenType.VAR)
@@ -463,9 +472,7 @@ class Parser(object):
             self.eat(TokenType.RIGHT_ARROW)
             return_type = self.type_spec()
         else:
-            return_type = AST.Type(nToken.Token(TokenType.VOID.name, "VOID", lineno=-1, column=-1),
-                                   0,
-                                   [])
+            return_type = AST.Type(nToken.Token(TokenType.VOID.name, "VOID", lineno=-1, column=-1), [])
 
         self.eat(TokenType.SEMI)
         block_node = self.block()
@@ -511,7 +518,7 @@ class Parser(object):
             self.eat(nToken.TokenType.IDENTIFIER)
 
             if nToken.Compare(self.current_token, nToken.TokenType.ASSIGN):
-                if self.current_token.value != ':=':
+                if self.current_token.value != ':=' and self.current_token.value != '=':
                     self.error(error_code=ErrorCode.UNEXPECTED_TOKEN, token=self.current_token)
                 self.eat(nToken.TokenType.ASSIGN)
                 
@@ -528,7 +535,7 @@ class Parser(object):
         self.eat(nToken.TokenType.END)
         self.eat(TokenType.SEMI)
 
-        return AST.Enum_def(enum_name_token, member_pair_list)
+        return AST.EnumDecl(enum_name_token, member_pair_list)
 
     def block(self):
         """block : declarations compound_statement"""

@@ -1,16 +1,19 @@
 import AST
+import TypeDescriptor as nTDS
 
 class Symbol(object):
     is_initialized = False
-    def __init__(self, name:str, type=None):
+    type_descriptor = None
+    def __init__(self, name:str, type_descriptor=None):
         self.name = name
-        self.type = type
+        self.type_descriptor = type_descriptor
+    def type_class(self):
+        return self.type_descriptor.type_class
 
-
-class BuiltinTypeSymbol(Symbol):
-    def __init__(self, name, type:str):
-        super().__init__(name, type)
-
+class TypeSymbol(Symbol):
+    def __init__(self, type_descriptor:nTDS.TypeDescriptor):
+        super().__init__(type_descriptor.name, type_descriptor)
+        self.type_descriptor = type_descriptor
     def __str__(self):
         return self.name
 
@@ -18,11 +21,12 @@ class BuiltinTypeSymbol(Symbol):
 
 
 class VarSymbol(Symbol):
-    def __init__(self, name, type:AST.Type):
-        super().__init__(name, type)
+    def __init__(self, name, type_node:AST.Type):
+        super().__init__(name, type_node.type_descriptor)
+        self.type_node = type_node
 
     def __str__(self):
-        return '<{name}:{type}>'.format(name=self.name, type=self.type.value)
+        return '<{name}:{type}>'.format(name=self.name, type=self.type_descriptor.name)
 
     __repr__ = __str__
 
@@ -45,12 +49,14 @@ class ProcedureSymbol(Symbol):
 
     __repr__ = __str__
 
-class EnumSymbol(Symbol):
-    def __init__(self, name, type:AST.Enum_def, member_set):
-        super().__init__(name, type)
+class EnumSymbol(TypeSymbol):
+    def __init__(self, type_node:AST.EnumDecl, member_set):
+        type_class = nTDS.TypeDescriptor.TypeClass.ENUM
+        type_descriptor = nTDS.TypeDescriptor(type_node.type_descriptor.name, type_class)
+        super().__init__(type_descriptor)
         self.member_set = member_set
-
+        self.type_node = type_node
     def __str__(self):
-        return '<{name}:{type}>'.format(name=self.name, type=self.type.token)
+        return '<{name}:{type}>'.format(name=self.name, type=self.type_node.token)
 
     __repr__ = __str__

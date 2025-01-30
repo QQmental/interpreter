@@ -1,7 +1,6 @@
 from LogOption import _SHOULD_LOG_STACK
 import NodeVisitor as nNodeVisitor
-from Token import TokenType
-from collections import OrderedDict
+import Token as nToken
 import AST
 import ValueObject as nVO
     
@@ -46,7 +45,7 @@ class ActivationRecord:
         self.name = name
         self.type = type
         self.nesting_level = nesting_level
-        self.members = OrderedDict()
+        self.members = {}
 
 
     def __setitem__(self, key, value):
@@ -96,13 +95,13 @@ class Interpreter(nNodeVisitor.NodeVisitor):
         while head.level != 1:
             head = head.left
 
-        size_list = head.left.value_type.dimension_size_list
+        size_list = head.left.type_descriptor.dimension_size_list
 
         cur = node
 
-        while idx <= head.left.value_type.dimension:
+        while cur != head.left:
             sum += product * self.visit(cur.inside).getter()
-            product *= self.visit(size_list[head.left.value_type.dimension - idx]).getter()
+            product *= size_list[head.left.type_descriptor.dimension - idx]
             idx += 1
             cur = cur.left
         var_name = head.left.value
@@ -118,42 +117,41 @@ class Interpreter(nNodeVisitor.NodeVisitor):
 
 
     def visit_BinOp(self, node):
-        if node.op.type == TokenType.PLUS.name:
+        if  nToken.Compare(node.op, nToken.TokenType.PLUS):
             value = self.visit(node.left).getter() + self.visit(node.right).getter()
-        elif node.op.type == TokenType.MINUS.name:
+        elif nToken.Compare(node.op, nToken.TokenType.MINUS):
             value = self.visit(node.left).getter() - self.visit(node.right).getter()
-        elif node.op.type == TokenType.MULTIPLY.name:
+        elif nToken.Compare(node.op, nToken.TokenType.MULTIPLY):
             value = self.visit(node.left).getter() * self.visit(node.right).getter()
-        elif node.op.type == TokenType.INTEGER_DIV.name:
+        elif nToken.Compare(node.op, nToken.TokenType.INTEGER_DIV):
             value = self.visit(node.left).getter() // self.visit(node.right).getter()
-        elif node.op.type == TokenType.FLOAT_DIV.name:
+        elif nToken.Compare(node.op, nToken.TokenType.FLOAT_DIV):
             value = float(self.visit(node.left).getter()) / float(self.visit(node.right).getter())
-        elif node.op.type == TokenType.LOGIC_AND.name:
+        elif nToken.Compare(node.op, nToken.TokenType.LOGIC_AND):
             value = self.visit(node.left).getter() and self.visit(node.right).getter()
-        elif node.op.type == TokenType.LOGIC_OR.name:
+        elif nToken.Compare(node.op, nToken.TokenType.LOGIC_OR):
             value = self.visit(node.left).getter() or self.visit(node.right).getter()
-        elif node.op.type == TokenType.BIT_XOR.name:
+        elif nToken.Compare(node.op, nToken.TokenType.BIT_XOR):
             #not implemented
             self.visit(node.left).getter()
             self.visit(node.right).getter()
             value = 0
-        elif node.op.type == TokenType.EQUAL.name:
+        elif nToken.Compare(node.op, nToken.TokenType.EQUAL):
             value = self.visit(node.left).getter() == self.visit(node.right).getter()
-        elif node.op.type == TokenType.INEQUAL.name:
+        elif nToken.Compare(node.op, nToken.TokenType.INEQUAL):
             value = self.visit(node.left).getter() != self.visit(node.right).getter()  
-        elif node.op.type == TokenType.LTE.name:
+        elif nToken.Compare(node.op, nToken.TokenType.LTE):
             value = self.visit(node.left).getter() <= self.visit(node.right).getter()
-        elif node.op.type == TokenType.LT.name:
+        elif nToken.Compare(node.op, nToken.TokenType.LT):
             value = self.visit(node.left).getter() < self.visit(node.right).getter()
-        elif node.op.type == TokenType.GTE.name:
+        elif nToken.Compare(node.op, nToken.TokenType.GTE):
             value = self.visit(node.left).getter() >= self.visit(node.right).getter()
-        elif node.op.type == TokenType.GT.name:
+        elif nToken.Compare(node.op, nToken.TokenType.GT):
             value = self.visit(node.left).getter() > self.visit(node.right).getter()
         return nVO.ValueObject(nVO.ValueObject.just_set, nVO.ValueObject.just_get, value)
 
     def visit_Num(self, node):
         def setter(val_obj, val):
-            node.value = 10
             val_obj.value = val
         def getter(val_obj):
             return val_obj.value
@@ -168,15 +166,30 @@ class Interpreter(nNodeVisitor.NodeVisitor):
         
         return nVO.ValueObject(setter, getter, node.value)
 
+    def visit_StringVal(self, node):
+        def setter(val_obj, val):
+            pass
+        def getter(val_obj):
+            return val_obj.value
+        
+        return nVO.ValueObject(setter, getter, node.value)
+
+    def visit_CharVal(self, node):
+        def setter(val_obj, val):
+            pass
+        def getter(val_obj):
+            return val_obj.value
+        
+        return nVO.ValueObject(setter, getter, node.value)
 
     def visit_UnaryOp(self, node):
         val_obj = self.visit(node.expr)
 
-        if node.op.type == TokenType.PLUS.name:
+        if nToken.Compare(node.op, nToken.TokenType.PLUS):
             val_obj.setter(val_obj.getter() * 1)
-        elif node.op.type == TokenType.MINUS.name:
+        elif nToken.Compare(node.op, nToken.TokenType.MINUS):
             val_obj.setter(val_obj.getter() * -1)
-        elif node.op.type == TokenType.NOT.name:
+        elif nToken.Compare(node.op, nToken.TokenType.NOT):
             val_obj.setter(not val_obj.getter())
         return val_obj
 
@@ -189,7 +202,7 @@ class Interpreter(nNodeVisitor.NodeVisitor):
     def visit_Assign(self, node):
         val_obj = self.visit(node.left)
         right_val = self.visit(node.right).getter()
-        if node.op.value == ':=':
+        if node.op.value == ':=' or node.op.value == '=':
             val_obj.setter(right_val)                 
         else:
             if node.op.value == '+=':
@@ -221,7 +234,7 @@ class Interpreter(nNodeVisitor.NodeVisitor):
     def visit_NoOp(self, node):
         pass
 
-    def visit_Enum_def(self, node):
+    def visit_EnumDecl(self, node):
         pass
 
     def visit_Declarations(self, node):
@@ -240,20 +253,26 @@ class Interpreter(nNodeVisitor.NodeVisitor):
         elif  node.type == AST.Control_flow_statement.control_type.CONTINUE:
             self.continue_flag = True
         elif node.type == AST.Control_flow_statement.control_type.RETURN:
-            value = self.visit(node.return_val)
+            value = self.visit(node.return_val).getter()
             self.return_flag = True
             for ar in reversed(self.call_stack._records):
                 if ar.type == nNodeVisitor.ARType.PROCEDURE:
-                    ar.return_value = value
+                    ar.return_value = nVO.ValueObject(nVO.ValueObject.just_set,
+                                                      nVO.ValueObject.just_get,
+                                                      value)
                     break
 
-    def visit_VARs_decl(self, node):
+    def visit_VARsDecl(self, node):
         for var in node.var_list:
             var_name = var.value
-            if node.type_node.dimension == 0:
+            if node.type_node.type_descriptor.array_len == 0:
                 self.call_stack.top()[var_name] = 0
+                if node.initilized_value != None:
+                    val_obj = self.visit(var)
+                    right_val = self.visit(node.initilized_value).getter()
+                    val_obj.setter(right_val)
             else:
-                self.call_stack.top()[var_name] = [0] * node.type_node.array_len
+                self.call_stack.top()[var_name] = [0] * node.type_node.type_descriptor.array_len
 
     def visit_ProcedureDecl(self, node):
         pass
@@ -261,7 +280,7 @@ class Interpreter(nNodeVisitor.NodeVisitor):
     def visit_IfBlock(self, node:AST.IfBlock):
         self.log(f'ENTER: IF cond{node.token}')
 
-        if node.condition != None and self.visit(node.condition) == False:
+        if node.condition != None and self.visit(node.condition).getter() == False:
             return False
 
         self.log(f'ENTER: IF {node.token}')

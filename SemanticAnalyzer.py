@@ -6,108 +6,90 @@ import Error as nError
 from collections import OrderedDict
 from LogOption import _SHOULD_LOG_SCOPE
 import ValueObject as nVO
+import TypeDescriptor as nTDS
+import copy
 
-
-BUILTIN_TYPE_BINOP_TABLE = {(nToken.TokenType.PLUS, nToken.TokenType.INTEGER, nToken.TokenType.INTEGER, nToken.TokenType.INTEGER),
-                            (nToken.TokenType.PLUS, nToken.TokenType.REAL, nToken.TokenType.REAL, nToken.TokenType.REAL),
+BUILTIN_TYPE_BINOP_TABLE = {(nToken.TokenType.PLUS, nTDS.TypeDescriptor.TypeClass.INTEGER,     nTDS.TypeDescriptor.TypeClass.INTEGER, nTDS.TypeDescriptor.TypeClass.INTEGER),
+                            (nToken.TokenType.PLUS, nTDS.TypeDescriptor.TypeClass.REAL,        nTDS.TypeDescriptor.TypeClass.REAL,    nTDS.TypeDescriptor.TypeClass.REAL),
                             
-                            (nToken.TokenType.MINUS, nToken.TokenType.INTEGER, nToken.TokenType.INTEGER, nToken.TokenType.INTEGER),
-                            (nToken.TokenType.MINUS, nToken.TokenType.REAL, nToken.TokenType.REAL, nToken.TokenType.REAL),
+                            (nToken.TokenType.MINUS, nTDS.TypeDescriptor.TypeClass.INTEGER,    nTDS.TypeDescriptor.TypeClass.INTEGER, nTDS.TypeDescriptor.TypeClass.INTEGER),
+                            (nToken.TokenType.MINUS, nTDS.TypeDescriptor.TypeClass.REAL,       nTDS.TypeDescriptor.TypeClass.REAL,    nTDS.TypeDescriptor.TypeClass.REAL),
                             
-                            (nToken.TokenType.MULTIPLY, nToken.TokenType.INTEGER, nToken.TokenType.INTEGER, nToken.TokenType.INTEGER),
-                            (nToken.TokenType.MULTIPLY, nToken.TokenType.REAL, nToken.TokenType.REAL, nToken.TokenType.REAL),
+                            (nToken.TokenType.MULTIPLY, nTDS.TypeDescriptor.TypeClass.INTEGER, nTDS.TypeDescriptor.TypeClass.INTEGER, nTDS.TypeDescriptor.TypeClass.INTEGER),
+                            (nToken.TokenType.MULTIPLY, nTDS.TypeDescriptor.TypeClass.REAL,    nTDS.TypeDescriptor.TypeClass.REAL,    nTDS.TypeDescriptor.TypeClass.REAL),
 
 
-                            (nToken.TokenType.FLOAT_DIV, nToken.TokenType.REAL, nToken.TokenType.REAL, nToken.TokenType.REAL),
+                            (nToken.TokenType.FLOAT_DIV, nTDS.TypeDescriptor.TypeClass.REAL, nTDS.TypeDescriptor.TypeClass.REAL, nTDS.TypeDescriptor.TypeClass.REAL),
 
-                            (nToken.TokenType.INTEGER_DIV, nToken.TokenType.INTEGER, nToken.TokenType.INTEGER, nToken.TokenType.INTEGER),
-                            (nToken.TokenType.LOGIC_OR, nToken.TokenType.BOOL, nToken.TokenType.BOOL, nToken.TokenType.BOOL),
-                            (nToken.TokenType.LOGIC_AND, nToken.TokenType.BOOL, nToken.TokenType.BOOL, nToken.TokenType.BOOL),
-                            (nToken.TokenType.NOT, nToken.TokenType.BOOL, nToken.TokenType.BOOL, nToken.TokenType.BOOL),
-                            (nToken.TokenType.EQUAL, nToken.TokenType.INTEGER, nToken.TokenType.INTEGER, nToken.TokenType.INTEGER),
-                            (nToken.TokenType.EQUAL, nToken.TokenType.REAL, nToken.TokenType.REAL, nToken.TokenType.REAL),
-                            (nToken.TokenType.EQUAL, nToken.TokenType.BOOL, nToken.TokenType.BOOL, nToken.TokenType.BOOL),
-                            (nToken.TokenType.INEQUAL, nToken.TokenType.INTEGER, nToken.TokenType.INTEGER, nToken.TokenType.INTEGER),
-                            (nToken.TokenType.INEQUAL, nToken.TokenType.REAL, nToken.TokenType.REAL, nToken.TokenType.REAL),
-                            (nToken.TokenType.INEQUAL, nToken.TokenType.BOOL, nToken.TokenType.BOOL, nToken.TokenType.BOOL),
-                            (nToken.TokenType.LT, nToken.TokenType.INTEGER, nToken.TokenType.INTEGER, nToken.TokenType.INTEGER),
-                            (nToken.TokenType.LT, nToken.TokenType.REAL, nToken.TokenType.REAL, nToken.TokenType.REAL),
-                            (nToken.TokenType.LT, nToken.TokenType.BOOL, nToken.TokenType.BOOL, nToken.TokenType.BOOL) ,
-                            (nToken.TokenType.LTE, nToken.TokenType.INTEGER, nToken.TokenType.INTEGER, nToken.TokenType.INTEGER),
-                            (nToken.TokenType.LTE, nToken.TokenType.REAL, nToken.TokenType.REAL, nToken.TokenType.REAL),
-                            (nToken.TokenType.LTE, nToken.TokenType.BOOL, nToken.TokenType.BOOL, nToken.TokenType.BOOL),
-                            (nToken.TokenType.GT, nToken.TokenType.INTEGER, nToken.TokenType.INTEGER, nToken.TokenType.INTEGER),
-                            (nToken.TokenType.GT, nToken.TokenType.REAL, nToken.TokenType.REAL, nToken.TokenType.REAL),
-                            (nToken.TokenType.GT, nToken.TokenType.BOOL, nToken.TokenType.BOOL, nToken.TokenType.BOOL),
-                            (nToken.TokenType.GTE, nToken.TokenType.INTEGER, nToken.TokenType.INTEGER, nToken.TokenType.INTEGER),
-                            (nToken.TokenType.GTE, nToken.TokenType.REAL, nToken.TokenType.REAL, nToken.TokenType.REAL),
-                            (nToken.TokenType.GTE, nToken.TokenType.BOOL, nToken.TokenType.BOOL, nToken.TokenType.BOOL),
+                            (nToken.TokenType.INTEGER_DIV, nTDS.TypeDescriptor.TypeClass.INTEGER, nTDS.TypeDescriptor.TypeClass.INTEGER, nTDS.TypeDescriptor.TypeClass.INTEGER),
+                            (nToken.TokenType.LOGIC_OR,    nTDS.TypeDescriptor.TypeClass.BOOL,    nTDS.TypeDescriptor.TypeClass.BOOL,    nTDS.TypeDescriptor.TypeClass.BOOL),
+                            (nToken.TokenType.LOGIC_AND,   nTDS.TypeDescriptor.TypeClass.BOOL,    nTDS.TypeDescriptor.TypeClass.BOOL,    nTDS.TypeDescriptor.TypeClass.BOOL),
+                            (nToken.TokenType.NOT,         nTDS.TypeDescriptor.TypeClass.BOOL,    nTDS.TypeDescriptor.TypeClass.BOOL,    nTDS.TypeDescriptor.TypeClass.BOOL),
+                            (nToken.TokenType.EQUAL,       nTDS.TypeDescriptor.TypeClass.INTEGER, nTDS.TypeDescriptor.TypeClass.INTEGER, nTDS.TypeDescriptor.TypeClass.INTEGER),
+                            (nToken.TokenType.EQUAL,       nTDS.TypeDescriptor.TypeClass.REAL,    nTDS.TypeDescriptor.TypeClass.REAL,    nTDS.TypeDescriptor.TypeClass.REAL),
+                            (nToken.TokenType.EQUAL,       nTDS.TypeDescriptor.TypeClass.BOOL,    nTDS.TypeDescriptor.TypeClass.BOOL,    nTDS.TypeDescriptor.TypeClass.BOOL),
+                            (nToken.TokenType.INEQUAL,     nTDS.TypeDescriptor.TypeClass.INTEGER, nTDS.TypeDescriptor.TypeClass.INTEGER, nTDS.TypeDescriptor.TypeClass.INTEGER),
+                            (nToken.TokenType.INEQUAL,     nTDS.TypeDescriptor.TypeClass.REAL,    nTDS.TypeDescriptor.TypeClass.REAL,    nTDS.TypeDescriptor.TypeClass.REAL),
+                            (nToken.TokenType.INEQUAL,     nTDS.TypeDescriptor.TypeClass.BOOL,    nTDS.TypeDescriptor.TypeClass.BOOL,    nTDS.TypeDescriptor.TypeClass.BOOL),
+                            (nToken.TokenType.LT,          nTDS.TypeDescriptor.TypeClass.INTEGER, nTDS.TypeDescriptor.TypeClass.INTEGER, nTDS.TypeDescriptor.TypeClass.INTEGER),
+                            (nToken.TokenType.LT,          nTDS.TypeDescriptor.TypeClass.REAL,    nTDS.TypeDescriptor.TypeClass.REAL,    nTDS.TypeDescriptor.TypeClass.REAL),
+                            (nToken.TokenType.LT,          nTDS.TypeDescriptor.TypeClass.BOOL,    nTDS.TypeDescriptor.TypeClass.BOOL,    nTDS.TypeDescriptor.TypeClass.BOOL) ,
+                            (nToken.TokenType.LTE,         nTDS.TypeDescriptor.TypeClass.INTEGER, nTDS.TypeDescriptor.TypeClass.INTEGER, nTDS.TypeDescriptor.TypeClass.INTEGER),
+                            (nToken.TokenType.LTE,         nTDS.TypeDescriptor.TypeClass.REAL,    nTDS.TypeDescriptor.TypeClass.REAL,    nTDS.TypeDescriptor.TypeClass.REAL),
+                            (nToken.TokenType.LTE,         nTDS.TypeDescriptor.TypeClass.BOOL,    nTDS.TypeDescriptor.TypeClass.BOOL,    nTDS.TypeDescriptor.TypeClass.BOOL),
+                            (nToken.TokenType.GT,          nTDS.TypeDescriptor.TypeClass.INTEGER, nTDS.TypeDescriptor.TypeClass.INTEGER, nTDS.TypeDescriptor.TypeClass.INTEGER),
+                            (nToken.TokenType.GT,          nTDS.TypeDescriptor.TypeClass.REAL,    nTDS.TypeDescriptor.TypeClass.REAL,    nTDS.TypeDescriptor.TypeClass.REAL),
+                            (nToken.TokenType.GT,          nTDS.TypeDescriptor.TypeClass.BOOL,    nTDS.TypeDescriptor.TypeClass.BOOL,    nTDS.TypeDescriptor.TypeClass.BOOL),
+                            (nToken.TokenType.GTE,         nTDS.TypeDescriptor.TypeClass.INTEGER, nTDS.TypeDescriptor.TypeClass.INTEGER, nTDS.TypeDescriptor.TypeClass.INTEGER),
+                            (nToken.TokenType.GTE,         nTDS.TypeDescriptor.TypeClass.REAL,    nTDS.TypeDescriptor.TypeClass.REAL,    nTDS.TypeDescriptor.TypeClass.REAL),
+                            (nToken.TokenType.GTE,         nTDS.TypeDescriptor.TypeClass.BOOL,    nTDS.TypeDescriptor.TypeClass.BOOL,    nTDS.TypeDescriptor.TypeClass.BOOL),
                         }
 
-def define_type_aassignd_method(name:str):
-    if name == nToken.TokenType.BOOL.name: #cast the val into a BOOl value
+def define_type_aassignd_method(type_descriptor:nTDS.TypeDescriptor):
+    if type_descriptor.type_class == nTDS.TypeDescriptor.TypeClass.BOOL: #cast the val into a BOOl value
         return  lambda val : val != 0
+    elif type_descriptor.type_class == nTDS.TypeDescriptor.TypeClass.STRING:
+        return  lambda val : val
     else:
         return lambda val : val
 
 
 
 class EvalExprInfo(object):
-    def __init__(self, is_integral:bool = False, constexpr_value = None):
-        self.is_integral_ = is_integral
+    def __init__(self, type_descriptor:nTDS.TypeDescriptor, constexpr_value = None):
+        self.type_descriptor = type_descriptor
         self.constexpr_value_ = constexpr_value
         pass
 
     def get(self):
         return self.constexpr_value_
     
+    def set(self, val):
+        self.constexpr_value_ = val
+    
+    def type_class(self)->nTDS.TypeDescriptor.TypeClass:
+        return self.type_descriptor.type_class
+    
     def is_integral(self) -> bool:
-        return self.is_integral_
+        return self.type_class() == nTDS.TypeDescriptor.TypeClass.INTEGER or \
+               self.type_class() == nTDS.TypeDescriptor.TypeClass.BOOL or \
+               self.type_class() == nTDS.TypeDescriptor.TypeClass.ENUM
     
     def is_constexpr(self)->bool:
         return self.constexpr_value_ != None
     
-    def __add__(self, other):
-        if self.get() == None or other.get() == None:
-            return EvalExprInfo(is_both_integral(self, other))
-        else:
-            return EvalExprInfo(is_both_integral(self, other), self.get() + other.get())
-    def __sub__(self, other):
-        if self.get() == None or other.get() == None:
-            return EvalExprInfo(is_both_integral(self, other))
-        else:
-            return EvalExprInfo(is_both_integral(self, other), self.get() - other.get())
-    def __mul__(self, other):
-        if self.get() == None or other.get() == None:
-            return EvalExprInfo(is_both_integral(self, other))
-        else:
-            return EvalExprInfo(is_both_integral(self, other), self.get() * other.get())
-    def __truediv__(self, other):
-        if self.get() == None or other.get() == None:
-            return EvalExprInfo(is_both_integral(self, other))
-        else:
-            return EvalExprInfo(is_both_integral(self, other), self.get() / other.get())
 
-    def __floordiv__(self, other):
-        if self.get() == None or other.get() == None:
-            return EvalExprInfo(is_both_integral(self, other))
+def Eval_expr(lhs, rhs, bin_op, type_class = None):
+    if type_class == None:
+        if lhs.type_class() == nTDS.TypeDescriptor.TypeClass.REAL or rhs.type_class() == nTDS.TypeDescriptor.TypeClass.REAL:
+            type_class = nTDS.TypeDescriptor.TypeClass.REAL
         else:
-            return EvalExprInfo(is_both_integral(self, other), self.get() // other.get())        
-   
-    def __mod__(self, other):
-        if self.get() == None or other.get() == None:
-            return EvalExprInfo(is_both_integral(self, other))
-        else:
-            return EvalExprInfo(is_both_integral(self, other), self.get() % other.get())     
-
-    def opr(self, other, bin_op):
-        if self.get() == None or other.get() == None:
-            return EvalExprInfo(is_both_integral(self, other))
-        else:
-            return EvalExprInfo(is_both_integral(self, other), bin_op(self.get(), other.get())) 
-
-def is_both_integral(lhs:EvalExprInfo, rhs:EvalExprInfo):
-    return lhs.is_integral() and rhs.is_integral()
+            type_class = nTDS.TypeDescriptor.TypeClass.INTEGER
+    tds = nTDS.TypeDescriptor("", type_class)
+    if lhs.get() != None and rhs.get() != None:
+        return EvalExprInfo(tds, bin_op(lhs.get(), rhs.get()))
+    else:
+        return EvalExprInfo(tds)        
 
 
 class ScopedSymbolTable(object):
@@ -124,8 +106,17 @@ class ScopedSymbolTable(object):
             print(msg)
 
     def _init_builtins(self):
-        for builtin_type in nToken.BUILTIN_TYPES:
-            self.insert(Symbol.BuiltinTypeSymbol(builtin_type.name, builtin_type.name))
+        builtin_types = [
+                        nTDS.TypeDescriptor(nToken.TokenType.INTEGER.name, nTDS.TypeDescriptor.TypeClass.INTEGER),
+                        nTDS.TypeDescriptor(nToken.TokenType.REAL.name, nTDS.TypeDescriptor.TypeClass.REAL),
+                        nTDS.TypeDescriptor(nToken.TokenType.BOOL.name, nTDS.TypeDescriptor.TypeClass.BOOL),
+                        nTDS.TypeDescriptor(nToken.TokenType.CHAR.name, nTDS.TypeDescriptor.TypeClass.CHAR),                        
+                        nTDS.TypeDescriptor(nToken.TokenType.STRING.name, nTDS.TypeDescriptor.TypeClass.STRING),
+                        nTDS.TypeDescriptor(nToken.TokenType.VOID.name, nTDS.TypeDescriptor.TypeClass.VOID)
+                       ]
+    
+        for builtin_type in builtin_types:
+            self.insert(Symbol.TypeSymbol(builtin_type))
         return
 
     def __str__(self):
@@ -193,68 +184,83 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
             if nToken.Compare(node.left.token, nToken.TokenType.IDENTIFIER) == False:
                 self.error(error_code=nError.ErrorCode.UNEXPECTED_TOKEN, token=node.left.token) 
         
-        self.visit(node.left)
+        self.visit(node.inside)
+        eval_expr = copy.deepcopy(self.visit(node.left))
+        if eval_expr.type_descriptor.array_len:
+            eval_expr.type_descriptor.array_len //= eval_expr.type_descriptor.dimension_size_list[0]
+            eval_expr.type_descriptor.dimension -= 1
+            del(eval_expr.type_descriptor.dimension_size_list[0])
+        node.type_descriptor = eval_expr.type_descriptor
+        return EvalExprInfo(node.type_descriptor)
 
 
     def visit_BinOp(self, node):
         if nToken.Compare(node.op, nToken.TokenType.PLUS):
-            value = self.visit(node.left) + self.visit(node.right)
+            value = Eval_expr(self.visit(node.left), self.visit(node.right), lambda x,y : x + y)
         elif nToken.Compare(node.op, nToken.TokenType.MINUS):
-            value = self.visit(node.left) - self.visit(node.right)
+            value = Eval_expr(self.visit(node.left), self.visit(node.right), lambda x,y : x - y)
         elif nToken.Compare(node.op, nToken.TokenType.MULTIPLY):
-            value = self.visit(node.left) * self.visit(node.right)
+            value = Eval_expr(self.visit(node.left), self.visit(node.right), lambda x,y : x * y)
         elif nToken.Compare(node.op, nToken.TokenType.INTEGER_DIV):
-            value = self.visit(node.left) // self.visit(node.right)
+            value = Eval_expr(self.visit(node.left), self.visit(node.right), lambda x,y : x // y)
         elif nToken.Compare(node.op, nToken.TokenType.FLOAT_DIV):
-            value = float(self.visit(node.left)) / float(self.visit(node.right))
+            value = Eval_expr(self.visit(node.left), self.visit(node.right), lambda x,y : float(float(x) / float(y)))
         elif nToken.Compare(node.op, nToken.TokenType.LOGIC_AND):
-            value = EvalExprInfo(self.visit(node.left), self.visit(node.right), lambda x,y : x and y)
+            value = Eval_expr(self.visit(node.left), self.visit(node.right), lambda x,y : x and y)
         elif nToken.Compare(node.op, nToken.TokenType.LOGIC_OR):
-            value = EvalExprInfo(self.visit(node.left), self.visit(node.right), lambda x,y : x or y)
+            value = Eval_expr(self.visit(node.left), self.visit(node.right), lambda x,y : x or y)
         elif nToken.Compare(node.op, nToken.TokenType.BIT_XOR):
             #not implemented
             self.visit(node.left)
             self.visit(node.right)
             value = 0
         elif nToken.Compare(node.op, nToken.TokenType.EQUAL):
-            value = EvalExprInfo.opr(self.visit(node.left), self.visit(node.right), lambda x,y : x == y)
+            value = Eval_expr(self.visit(node.left), self.visit(node.right), lambda x,y : x == y, nTDS.TypeDescriptor.TypeClass.BOOL)
         elif nToken.Compare(node.op, nToken.TokenType.INEQUAL):
-            value = EvalExprInfo.opr(self.visit(node.left), self.visit(node.right), lambda x,y : x != y)
+            value = Eval_expr(self.visit(node.left), self.visit(node.right), lambda x,y : x != y, nTDS.TypeDescriptor.TypeClass.BOOL)
         elif nToken.Compare(node.op, nToken.TokenType.LTE):
-            value = EvalExprInfo.opr(self.visit(node.left), self.visit(node.right), lambda x,y : x <= y)
+            value = Eval_expr(self.visit(node.left), self.visit(node.right), lambda x,y : x <= y, nTDS.TypeDescriptor.TypeClass.BOOL)
         elif nToken.Compare(node.op, nToken.TokenType.LT):
-            value = EvalExprInfo.opr(self.visit(node.left), self.visit(node.right), lambda x,y : x < y)
+            value = Eval_expr(self.visit(node.left), self.visit(node.right), lambda x,y : x < y, nTDS.TypeDescriptor.TypeClass.BOOL)
         elif nToken.Compare(node.op, nToken.TokenType.GTE):
-            value = EvalExprInfo.opr(self.visit(node.left), self.visit(node.right), lambda x,y : x >= y)
+            value = Eval_expr(self.visit(node.left), self.visit(node.right), lambda x,y : x >= y, nTDS.TypeDescriptor.TypeClass.BOOL)
         elif nToken.Compare(node.op, nToken.TokenType.GT):
-            value = EvalExprInfo.opr(self.visit(node.left), self.visit(node.right), lambda x,y : x > y)
+            value = Eval_expr(self.visit(node.left), self.visit(node.right), lambda x,y : x > y, nTDS.TypeDescriptor.TypeClass.BOOL)
         
-        if node.right.value_type == nToken.TokenType.VOID.name:
+        if node.right.type_descriptor.type_class == nTDS.TypeDescriptor.TypeClass.VOID:
             self.error(error_code=nError.ErrorCode.ASSIGNED_WITH_VOID, token=node.right.token)   
 
-        node.type = self.detect_type_binop(node.op.type, node.left, node.right)
+        node.type_descriptor = self.detect_type_binop(node.op.type, node.left, node.right)
 
         return value
 
     def visit_Num(self, node):
-        return EvalExprInfo(node.value_type == nToken.TokenType.INTEGER.name,
-                            node.value)
+        return EvalExprInfo(node.type_descriptor, node.value)
 
     def visit_BoolVal(self, node):
-        return EvalExprInfo(True, node.value)
+        return EvalExprInfo(node.type_descriptor, node.value)
     
+    def visit_StringVal(self, node):
+        return EvalExprInfo(node.type_descriptor, node.value)
+
+    def visit_CharVal(self, node):
+        return EvalExprInfo(node.type_descriptor, node.value)
+
+
     def visit_UnaryOp(self, node):
-        if node.op.type == nToken.TokenType.PLUS.name:
-            val = EvalExprInfo.opr(self.visit(node.expr), EvalExprInfo(True, 1), lambda x,y : x)
-            node.value_type = nToken.TokenType.INTEGER.name
+        val = self.visit(node.expr)
+        if node.op.type == nToken.TokenType.PLUS.name:     
+            if val.get() != None:
+                val.set(val.get() * 1)
         elif node.op.type == nToken.TokenType.MINUS.name:
-            val = EvalExprInfo.opr(self.visit(node.expr), EvalExprInfo(True, -1), lambda x,y : -x)
-            node.value_type = nToken.TokenType.INTEGER.name
+            if val.get() != None:
+                val.set(val.get() * -1)
         elif node.op.type == nToken.TokenType.NOT.name:
-            val = val = EvalExprInfo.opr(self.visit(node.expr), EvalExprInfo(True, 1), lambda x,y : not x)
-            node.value_type = nToken.TokenType.INTEGER.name
-        if self.compare_type(node.expr, nToken.TokenType.VOID):
-            self.error(error_code=nError.ErrorCode.ASSIGNED_WITH_VOID, token=node.expr.token)
+            if val.get() != None:
+                val.set(not val.get())
+                val.type_class = nTDS.TypeDescriptor.TypeClass.BOOL
+
+        node.type_descriptor = val.type_descriptor
         return val
     
     def visit_Compound(self, node):
@@ -265,7 +271,7 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
         if node.op.type != nToken.TokenType.ASSIGN.name:
             self.error(error_code=nError.ErrorCode.UNEXPECTED_TOKEN, token=node.token)
 
-        if node.op.value == ':=':
+        if node.op.value == ':=' or node.op.value == '=':
             self.visit(node.right)
             self.visit(node.left)
         elif node.op.value == '+=':
@@ -282,7 +288,7 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
             self.visit(node.left)
         else:
             self.error()
-        if self.compare_type(node.right, nToken.TokenType.VOID):
+        if self.compare_type(node.right, nTDS.TypeDescriptor.TypeClass.VOID):
             self.error(error_code=nError.ErrorCode.ASSIGNED_WITH_VOID, token=node.right.token)
 
     def visit_Var(self, node):
@@ -297,9 +303,10 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
                 "Error: access uninitialized variable'%s'" % var_name
             )
         """
-        node.assign_method = define_type_aassignd_method(var_symbol.type)
-        node.value_type = var_symbol.type
-        return EvalExprInfo(node.value_type == nToken.TokenType.INTEGER.name)
+        node.assign_method = define_type_aassignd_method(var_symbol.type_descriptor)
+        node.type_descriptor = var_symbol.type_descriptor
+        
+        return EvalExprInfo(node.type_descriptor)
         
     def visit_MemberAccess(self, node):
         var_name = node.left.token.value
@@ -307,7 +314,7 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
         if var_symbol is None:
             self.error(error_code=nError.ErrorCode.ID_NOT_FOUND, token=node.left.token)
         
-        if var_symbol.type.value_type == nToken.TokenType.ENUM.name:
+        if var_symbol.type_class() == nTDS.TypeDescriptor.TypeClass.ENUM:
             print(str(var_symbol.name) + " is enum!")
             if node.right.right != None:
                 self.error(error_code=nError.ErrorCode.UNEXPECTED_TOKEN, token=node.right.right.left.token)
@@ -318,16 +325,17 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
             def func():
                 return nVO.ValueObject(nVO.ValueObject.just_set, nVO.ValueObject.just_get, val)
             node.get_val_obj = func
-            node.value_type = nToken.TokenType.INTEGER.name
+            node.type_descriptor = var_symbol.type_descriptor
 
-            return EvalExprInfo(True, val)
+            tds = nTDS.TypeDescriptor(var_symbol.name, nTDS.TypeDescriptor.TypeClass.ENUM)
+            return EvalExprInfo(tds, val)
         
         return EvalExprInfo()
 
     def visit_NoOp(self, node):
         pass
 
-    def visit_Enum_def(self, node):
+    def visit_EnumDecl(self, node):
         print(node.token, len(node.member_pair_list))
 
         member_set = {}
@@ -338,7 +346,7 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
             member_set[pair[0].value] = val
             val += 1
 
-        esym = Symbol.EnumSymbol(node.token.value, node, member_set)
+        esym = Symbol.EnumSymbol(node, member_set)
         self.current_scope.insert(esym)
         return
 
@@ -352,21 +360,31 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
         if var_symbol is None:
             self.error(error_code = nError.ErrorCode.ID_NOT_FOUND, token=node.token)
         
-        product = 1
+        # array of node.type_descriptor.type_class
+        if len(node.dimension_size_expr_list) > 0:
+            product = 1
+            
+            node.type_descriptor.dimension = len(node.dimension_size_expr_list)
+            xlist = []
+            for dim_size_expr in node.dimension_size_expr_list:
+                eval_expr_info = self.visit(dim_size_expr)
+                if eval_expr_info.is_integral() == False:
+                    self.error(error_code = nError.ErrorCode.INVALID_ARRAY_SIZE_DEF, token=node.token)
+                if eval_expr_info.is_constexpr() == False:
+                    self.error(error_code = nError.ErrorCode.INVALID_ARRAY_SIZE_DEF, token=node.token)
+                if eval_expr_info.get() < 0:
+                    self.error(error_code = nError.ErrorCode.INVALID_ARRAY_SIZE_DEF, 
+                            token="array size=" + str(eval_expr_info.get()) +", array size should be greater or equal to 0")
+                
+                xlist.append(eval_expr_info.get())
+                product *= eval_expr_info.get()
+            
+            node.type_descriptor.dimension_size_list = xlist
+            node.type_descriptor.array_len = product
+            
+        elif node.type_descriptor.type_class == nTDS.TypeDescriptor.TypeClass.STRING:
+            node.type_descriptor.dimension_size_list = [1]
         
-        for dim_size_expr in node.dimension_size_list:
-            eval_expr_info = self.visit(dim_size_expr)
-            if eval_expr_info.is_integral() == False:
-                self.error(error_code = nError.ErrorCode.INVALID_ARRAY_SIZE_DEF, token=node.token)
-            if eval_expr_info.is_constexpr() == False:
-                self.error(error_code = nError.ErrorCode.INVALID_ARRAY_SIZE_DEF, token=node.token)
-            if eval_expr_info.get() < 0:
-                self.error(error_code = nError.ErrorCode.INVALID_ARRAY_SIZE_DEF, 
-                           token="array size=" + str(eval_expr_info.get()) +", array size should be greater or equal to 0")         
-            product *= eval_expr_info.get()
-        
-        if node.dimension > 0:
-            node.array_len = product
 
     def visit_Control_flow_statement(self, node):
         scope = self.current_scope
@@ -385,15 +403,15 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
             ret_type_name = scope.lookup(scope.scope_name).return_type_node.token.value
             if ret_type_name == nToken.TokenType.VOID.name and node.return_val.type != nToken.TokenType.VOID.name:
                 self.error(error_code = nError.ErrorCode.UNMATCHED_RETURN_VALUE, token=node.token)
-            elif ret_type_name != nToken.TokenType.VOID.name and node.return_val.value_type == nToken.TokenType.VOID.name:
+            elif ret_type_name != nToken.TokenType.VOID.name and node.return_val.type_descriptor.type_class == nTDS.TypeDescriptor.TypeClass.VOID:
                 self.error(error_code = nError.ErrorCode.UNMATCHED_RETURN_VALUE, token=node.token)
             
 
-    def visit_VARs_decl(self, node):
+    def visit_VARsDecl(self, node):
         self.visit(node.type_node)
         type_symbol = self.current_scope.lookup(node.type_node.value)
 
-        if type_symbol.type == nToken.TokenType.VOID.name:
+        if type_symbol.type_class() == nTDS.TypeDescriptor.TypeClass.VOID:
             self.error(
                 error_code=nError.ErrorCode.INVALID_TYPE_OF_OBJ_DECLARATION,
                 token=node.type_node.token         
@@ -409,6 +427,11 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
             var_symbol = Symbol.VarSymbol(var_name, node.type_node)
 
             self.current_scope.insert(var_symbol)
+
+            self.visit(var)
+        
+        if node.initilized_value != None:
+            self.visit(node.initilized_value)
     
     def visit_IfBlock(self, node:AST.IfBlock):
         if node.condition != None:
@@ -442,6 +465,7 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
         self.current_scope = self.current_scope.parent_scope
 
     def visit_ProcedureDecl(self, node):
+        self.visit(node.return_type_node)
         proc_name = node.proc_name
         proc_symbol = Symbol.ProcedureSymbol(proc_name,
                                              node.return_type_node,  
@@ -460,8 +484,11 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
 
         # Insert parameters into the procedure scope
         for param in node.para_node:
-            param_type = self.current_scope.lookup(param.type_node.value)
-            var_symbol = Symbol.VarSymbol(param.var_node.value, param_type.type)
+            self.visit(param.type_node)
+            type_symbol = self.current_scope.lookup(param.type_node.value)
+            param.type_node.type_descriptor = type_symbol.type_descriptor
+            param.var_node.type_descriptor = param.type_node.type_descriptor
+            var_symbol = Symbol.VarSymbol(param.var_node.value, param.type_node)
             var_symbol.is_initialized = True
             self.current_scope.insert(var_symbol)
             proc_symbol.params.append(var_symbol)
@@ -475,15 +502,21 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
     def visit_ProcedureCall(self, node):
         proc_symbol = self.current_scope.lookup(node.proc_name)
         
+        if proc_symbol == None:
+            self.error(error_code=nError.ErrorCode.ID_NOT_FOUND, token=node.token)
         if len(proc_symbol.params) != len(node.actual_params):
             self.error(error_code=nError.ErrorCode.PRAR_COUNT_NOT_MATCHED, token=node.token)
         
         node.ref_procedure = proc_symbol
-        node.value_type = proc_symbol.return_type_node.value
+        node.type_descriptor = proc_symbol.return_type_node.type_descriptor
 
-        for param_node in node.actual_params:
+        for idx, param_node in enumerate(node.actual_params):
             self.visit(param_node)
-        return EvalExprInfo()
+            if proc_symbol.params[idx].type_descriptor.is_type_equal(param_node.type_descriptor) == False:
+                self.error(error_code=nError.ErrorCode.PARAMETER_TYPE_MISMATCHED, 
+                           token=node.token)
+
+        return EvalExprInfo(proc_symbol.return_type_node.type_descriptor)
 
     def visit_Block(self, node):
         self.visit(node.declarations)
@@ -504,26 +537,26 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
         self.log(global_scope)
         self.log('LEAVE scope: global')
     
-    def compare_type(self, node, token_type:nToken.TokenType):
-        return node.value_type == token_type.name
+    def compare_type(self, node, type_class:nTDS.TypeDescriptor.TypeClass):
+        return node.type_descriptor.type_class == type_class
     
     def detect_type_binop(self, binop:str, node_left, node_right):
         closest_tup = None
         max_score = 0
 
         for tup in BUILTIN_TYPE_BINOP_TABLE:
-            if tup[0].name == binop:
+            if tup[0].name != binop:
                 continue
             score = 1
-            t1 = node_left.value_type
-            t2 = node_right.value_type
+            t1 = node_left.type_descriptor
+            t2 = node_right.type_descriptor
 
-            if t1 == tup[1].name:
+            if t1.type_class == tup[1]:
                 score += 1
-            if t2 == tup[2].name:
+            if t2.type_class == tup[2]:
                 score += 1
             if score > max_score:
                 max_score = score
                 closest_tup = tup
 
-        return closest_tup[3].name
+        return nTDS.TypeDescriptor("", closest_tup[3])

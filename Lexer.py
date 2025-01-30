@@ -142,6 +142,27 @@ class Lexer(object):
         if current_char.isalpha():
             return ret_wrap(self.pick_identifier())
         
+        if current_char == '\"':
+            str_val = ""
+            self.advance()
+            while self.current_char != '\"':
+                str_val += self.current_char
+                self.advance()
+            self.advance() #skip '\"'
+            return ret_wrap(Token(TokenType.STRING.name, str_val))
+
+        if current_char == '\'':
+            char_val = '\0'
+            self.advance()
+            if self.current_char != '\'':
+                char_val = self.current_char
+                self.advance()
+            if self.current_char != '\'':
+                self.error()
+            self.advance() #skip '\''
+            return ret_wrap(Token(TokenType.CHAR.name, char_val))
+        
+
         if current_char == '+':
             if self.overlook(1) == '=':
                self.advance()
@@ -208,6 +229,10 @@ class Lexer(object):
                 self.advance()
                 self.advance()
                 return ret_wrap(Token(TokenType.LTE.name, '<='))
+            elif self.overlook(1) == '-':
+                self.advance()
+                self.advance()
+                return ret_wrap(Token(TokenType.LEFT_ARROW.name, '<-'))                
             else:
                 self.advance()
                 return ret_wrap(Token(TokenType.LT.name, '<')) 
@@ -218,7 +243,8 @@ class Lexer(object):
                 self.advance()
                 return ret_wrap(Token(TokenType.EQUAL.name, '=='))
             else:
-                self.error()
+                self.advance()
+                return ret_wrap(Token(TokenType.ASSIGN.name, '='))
 
         if current_char == '&':
             if self.overlook(1) == '&':

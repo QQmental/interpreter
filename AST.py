@@ -1,50 +1,67 @@
 import Token as nToken
 from enum import Enum
-
+import TypeDescriptor as nTDS
+import copy
 
 class AST(object):
     pass
 
 class ValueNode(AST):
-    value_type:str
-    def __init__(self, type):
-        self.value_type = type
+    type_descriptor:nTDS.TypeDescriptor
+    def __init__(self, type_descriptor = None):
+        self.type_descriptor = type_descriptor
 
 class BinOp(ValueNode):
     def __init__(self, left, op, right):
         self.left = left
         self.token = self.op = op
         self.right = right
-        self.value_type = ""
 
 class UnaryOp(ValueNode):
     def __init__(self, op, expr):
         self.token = self.op = op
         self.expr = expr
-        self.value_type = ""
 
 class Subscript(ValueNode):
     get_value_func = None
     def __init__(self, left, expr, level):
         self.left = left        
         self.inside = expr
-        self.value_type = ""
         self.level = level
-        self.value = "z"
-
 
 
 class Num(ValueNode):
-    def __init__(self, token, value_type:str):
-        super().__init__(value_type)
+    def __init__(self, token, type_class:nTDS.TypeDescriptor.TypeClass):
+        super().__init__(nTDS.TypeDescriptor(token.type, type_class))
         self.token = token
         self.value = token.value
 
 class BoolVal(ValueNode):
     def __init__(self, token):
-        super().__init__(nToken.TokenType.BOOL.name)
+        type_class = nTDS.TypeDescriptor.TypeClass.BOOL
+        type_name = nToken.TokenType.BOOL.name
+
+        super().__init__(nTDS.TypeDescriptor(type_name, type_class))
         self.token = token
         self.value = token.value == 'TRUE'
+
+class StringVal(ValueNode):
+    def __init__(self, token):
+        type_class = nTDS.TypeDescriptor.TypeClass.STRING
+        type_name = nToken.TokenType.STRING.name
+
+        super().__init__(nTDS.TypeDescriptor(type_name, type_class))
+        self.token = token
+        self.value = token.value
+
+class CharVal(ValueNode):
+    def __init__(self, token):
+        type_class = nTDS.TypeDescriptor.TypeClass.CHAR
+        type_name = nToken.TokenType.CHAR.name
+
+        super().__init__(nTDS.TypeDescriptor(type_name, type_class))
+        self.token = token
+        self.value = token.value
 
 class Compound(AST):
     """Represents a 'BEGIN ... END' block"""
@@ -53,9 +70,10 @@ class Compound(AST):
 
 
 class NoOp(AST):
-    type:str
-    def __init__(self):
-        self.type = nToken.TokenType.VOID.name
+    type:nTDS.TypeDescriptor
+    def __init__(self, token):
+        self.token = token
+        self.type = nTDS.TypeDescriptor("")
     pass
 
 
@@ -83,30 +101,42 @@ class Var(AST):
 
 
 class Type(AST):
-    def __init__(self, token:nToken.Token, dimension:int, dimension_size_list):
+    type_descriptor = None
+    def __init__(self, token:nToken.Token, dimension_size_expr_list):
         self.token = token
         self.value = token.value
-        self.dimension = dimension
-        self.dimension_size_list = dimension_size_list
-        self.array_len = 0
+        self.dimension_size_expr_list = dimension_size_expr_list
+        if self.value == nToken.TokenType.INTEGER.name:
+            self.type_descriptor = nTDS.TypeDescriptor(self.value, nTDS.TypeDescriptor.TypeClass.INTEGER)
+        elif self.value == nToken.TokenType.REAL.name:
+            self.type_descriptor = nTDS.TypeDescriptor(self.value, nTDS.TypeDescriptor.TypeClass.REAL)
+        elif self.value == nToken.TokenType.BOOL.name:
+            self.type_descriptor = nTDS.TypeDescriptor(self.value, nTDS.TypeDescriptor.TypeClass.BOOL)
+        elif self.value == nToken.TokenType.CHAR.name:
+            self.type_descriptor = nTDS.TypeDescriptor(self.value, nTDS.TypeDescriptor.TypeClass.CHAR)  
+        elif self.value == nToken.TokenType.STRING.name:
+            self.type_descriptor = nTDS.TypeDescriptor(self.value, nTDS.TypeDescriptor.TypeClass.STRING)               
+        else:
+            self.type_descriptor = nTDS.TypeDescriptor(self.value)
 
-class Enum_def(ValueNode):
+
+class EnumDecl(ValueNode):
     def __init__(self, token:nToken.Token, member_pair_list):
-        super().__init__(nToken.TokenType.ENUM.name)
+        super().__init__(nTDS.TypeDescriptor(token.value, nTDS.TypeDescriptor.TypeClass.ENUM))
         self.token = token
         self.member_pair_list = member_pair_list
 
 
 #id_list:list[Var], type_node:Type
-class VARs_decl(AST):
-    def __init__(self, var_list, type_node:Type):
+class VARsDecl(AST):
+    def __init__(self, var_list, type_node:Type, initilized_value = None):
         self.var_list = var_list
         self.type_node = type_node
-
+        self.initilized_value = initilized_value
 
 class Declarations(AST):
     def __init__(self, declarations):
-        self.decls = declarations # a list of AST.VARs_decl
+        self.decls = declarations # a list of AST.VARsDecl, AST.EnumDecl, AST.ProcedureDecl
 
 
 class Block(AST):
@@ -149,19 +179,18 @@ class Param(AST):
         self.var_node = var_node
         self.type_node = type_node
 
-
 class ProcedureDecl(AST):
     def __init__(self, proc_name:Var, para_node, return_type_node, block_node):
         self.token = proc_name.token
         self.proc_name = proc_name.value
-        self.para_node = para_node # list[Param]
+        self.para_node = para_node  # list[Param]
         self.return_type_node = return_type_node
         self.block_node = block_node
 
 
 class ProcedureCall(ValueNode):
     def __init__(self, proc_name, actual_params, token, procedure:ProcedureDecl = None):
-        super().__init__(nToken.TokenType.VOID.name)
+        super().__init__()
         self.proc_name = proc_name
         self.actual_params = actual_params  # a list of AST nodes
         self.token = token
