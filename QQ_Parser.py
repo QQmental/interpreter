@@ -384,7 +384,11 @@ class Parser(object):
             self.eat(nToken.TokenType.LEFT_BRACKET)
             dim_size_expr_list.append(self.expr())
             self.eat(nToken.TokenType.RIGHT_BRACKET)
-        return AST.Type(token, dim_size_expr_list)
+        
+        if nToken.Compare(self.current_token, nToken.TokenType.REFERNECE):
+            self.eat(nToken.TokenType.REFERNECE)
+            return AST.Type(token, dim_size_expr_list, True)
+        return AST.Type(token, dim_size_expr_list, False)
         
     def variable_declaration(self):
         """variable_declaration : ID (COMMA ID)* COLON type_spec (:= expr)"""
@@ -398,12 +402,16 @@ class Parser(object):
         self.eat(TokenType.COLON)
         t = self.type_spec()
 
-        if nToken.Compare(self.current_token, nToken.TokenType.ASSIGN) and self.current_token.value == ':=':
+        assignment_symbol = ""
+        init_val = None
+
+        if nToken.Compare(self.current_token, nToken.TokenType.ASSIGN) \
+           and (self.current_token.value == ':=' or self.current_token.value == '<-'):
+            assignment_symbol = self.current_token.value
             self.eat(nToken.TokenType.ASSIGN)
             init_val = self.expr()
-            return AST.VARsDecl(var_list, t, init_val)
-        else:
-            return AST.VARsDecl(var_list, t)
+        return AST.VARsDecl(var_list, t, init_val, assignment_symbol)
+
 
     def formal_parameters(self):
         """ formal_parameters : ID (COMMA ID)* COLON type_spec """

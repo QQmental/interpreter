@@ -12,6 +12,7 @@ class ErrorCode(Enum):
     ASSIGNED_WITH_VOID = str.format("return value has type void, can't be used as a rvalue")
     INVALID_ARRAY_SIZE_DEF = 'invalid array size defined'
     INVALID_ENUM_BODY_DEF = 'member of enum should be greater than 0'
+    INVALID_VARIABLE_INITILIZATION = 'invalid initialization of the variable'
     UNKNOWN_ENUM_MEMBER = 'unknown access of a enum member'
     PARAMETER_TYPE_MISMATCHED = 'parameter mismatched'
 

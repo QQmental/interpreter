@@ -34,7 +34,7 @@ class VarSymbol(Symbol):
 class ProcedureSymbol(Symbol):
     def __init__(self, name, return_type_node:AST.Type, block_node:AST.Block, params=None):
         super().__init__(name,)
-        # a list of formal parameters
+        # params is a list of pair:(symbol of the parameter, assign_method)
         self.params = params if params is not None else []
         self.return_type_node = return_type_node        
         self.block_node = block_node

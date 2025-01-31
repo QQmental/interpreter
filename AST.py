@@ -70,10 +70,10 @@ class Compound(AST):
 
 
 class NoOp(AST):
-    type:nTDS.TypeDescriptor
+    type_descriptor:nTDS.TypeDescriptor
     def __init__(self, token):
         self.token = token
-        self.type = nTDS.TypeDescriptor("")
+        self.type_descriptor = nTDS.TypeDescriptor("", nTDS.TypeDescriptor.TypeClass.VOID)
     pass
 
 
@@ -102,7 +102,7 @@ class Var(AST):
 
 class Type(AST):
     type_descriptor = None
-    def __init__(self, token:nToken.Token, dimension_size_expr_list):
+    def __init__(self, token:nToken.Token, dimension_size_expr_list, is_ref_type:bool):
         self.token = token
         self.value = token.value
         self.dimension_size_expr_list = dimension_size_expr_list
@@ -112,12 +112,19 @@ class Type(AST):
             self.type_descriptor = nTDS.TypeDescriptor(self.value, nTDS.TypeDescriptor.TypeClass.REAL)
         elif self.value == nToken.TokenType.BOOL.name:
             self.type_descriptor = nTDS.TypeDescriptor(self.value, nTDS.TypeDescriptor.TypeClass.BOOL)
+        elif self.value == nToken.TokenType.VOID.name:
+            self.type_descriptor = nTDS.TypeDescriptor(self.value, nTDS.TypeDescriptor.TypeClass.VOID)            
         elif self.value == nToken.TokenType.CHAR.name:
-            self.type_descriptor = nTDS.TypeDescriptor(self.value, nTDS.TypeDescriptor.TypeClass.CHAR)  
+            self.type_descriptor = nTDS.TypeDescriptor(self.value, nTDS.TypeDescriptor.TypeClass.CHAR)
         elif self.value == nToken.TokenType.STRING.name:
             self.type_descriptor = nTDS.TypeDescriptor(self.value, nTDS.TypeDescriptor.TypeClass.STRING)               
         else:
             self.type_descriptor = nTDS.TypeDescriptor(self.value)
+        
+        if is_ref_type:
+            ref_type_descriptor = nTDS.TypeDescriptor(self.value + "_ref", nTDS.TypeDescriptor.TypeClass.REFERENCE)
+            ref_type_descriptor.nested_type_descriptor = self.type_descriptor
+            self.type_descriptor = ref_type_descriptor
 
 
 class EnumDecl(ValueNode):
@@ -129,10 +136,11 @@ class EnumDecl(ValueNode):
 
 #id_list:list[Var], type_node:Type
 class VARsDecl(AST):
-    def __init__(self, var_list, type_node:Type, initilized_value = None):
+    def __init__(self, var_list, type_node:Type, initilized_value, assignment_symbol:str):
         self.var_list = var_list
         self.type_node = type_node
         self.initilized_value = initilized_value
+        self.assignment_symbol = assignment_symbol
 
 class Declarations(AST):
     def __init__(self, declarations):

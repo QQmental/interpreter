@@ -9,6 +9,7 @@ class TokenType(Enum):
     MINUS = '-'
     MULTIPLY = '*'
     FLOAT_DIV = '/'
+    REFERNECE = '&'
     SINGLE_QUOTE = '\''
     DOUBLE_QUOTE = '\"'
     DOT = '.'
@@ -27,8 +28,8 @@ class TokenType(Enum):
     LT = '<'
     GTE = '>='
     GT = '>'
-    RIGHT_ARROW = '->'
     LEFT_ARROW = '<-'
+    RIGHT_ARROW = '->'
     LEFT_BRACKET = '['
     RIGHT_BRACKET = ']'
     # block of reserved words
@@ -55,6 +56,8 @@ class TokenType(Enum):
     ENUM = 'ENUM'
     #misc
     IDENTIFIER = 'IDENTIFIER'
+
+    # :=, +=, -=, *=, /=, =, <-
     ASSIGN = ':='
     EOF = 'EOF'
 

@@ -232,7 +232,7 @@ class Lexer(object):
             elif self.overlook(1) == '-':
                 self.advance()
                 self.advance()
-                return ret_wrap(Token(TokenType.LEFT_ARROW.name, '<-'))                
+                return ret_wrap(Token(TokenType.ASSIGN.name, '<-'))                
             else:
                 self.advance()
                 return ret_wrap(Token(TokenType.LT.name, '<')) 
@@ -252,7 +252,8 @@ class Lexer(object):
                 self.advance()
                 return ret_wrap(Token(TokenType.LOGIC_AND.name, '&&'))
             else:
-                self.error()
+                self.advance()
+                return ret_wrap(Token(TokenType.REFERNECE.name, '&'))
 
         if current_char == '/':
             if self.overlook(1) == '=':
