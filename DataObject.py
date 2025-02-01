@@ -17,13 +17,12 @@ class ValueObject(object):
         self.value = val
 
 class ReferenceObject(ValueObject):
+    # value of a ReferenceObject is the referenced ValueObject
     def __init__(self, setter, getter, val_obj:ValueObject):
-        self.setter_fn = setter
-        self.getter_fn = getter
-        self.val_obj = val_obj
+        super().__init__(setter, getter, val_obj)
 
     def setter(self, val):
-        self.val_obj.setter(val)
+        self.value.setter(val)
     
     def getter(self):
-        return self.val_obj.getter()
+        return self.value.getter()

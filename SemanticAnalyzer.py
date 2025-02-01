@@ -378,7 +378,7 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
                     self.error(error_code = nError.ErrorCode.INVALID_ARRAY_SIZE_DEF, token=node.token)
                 if eval_expr_info.get() < 0:
                     self.error(error_code = nError.ErrorCode.INVALID_ARRAY_SIZE_DEF, 
-                            token="array size=" + str(eval_expr_info.get()) +", array size should be greater or equal to 0")
+                            token=str(node.token)+ " array size=" + str(eval_expr_info.get()) +", array size should be greater or equal to 0")
                 
                 xlist.append(eval_expr_info.get())
                 product *= eval_expr_info.get()
