@@ -10,16 +10,23 @@ class ValueObject(object):
     def getter(self):
         return self.getter_fn(self)
     
-    def just_get(self):
-        return self.value
+    def __str__(self):
+        return str(self.value)
     
-    def just_set(self, val):
-        self.value = val
+def NaiveInitValueObject(value):
+    
+    def just_get(val_obj):
+        return val_obj.value
+    
+    def just_set(val_obj, val):
+        val_obj.value = val
 
-class ReferenceObject(ValueObject):
+    return ValueObject(just_set, just_get, value)
+
+class ReferenceObject(object):
     # value of a ReferenceObject is the referenced ValueObject
-    def __init__(self, setter, getter, val_obj:ValueObject):
-        super().__init__(setter, getter, val_obj)
+    def __init__(self, val_obj:ValueObject):
+        self.value = val_obj
 
     def setter(self, val):
         self.value.setter(val)

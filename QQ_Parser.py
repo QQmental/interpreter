@@ -268,7 +268,15 @@ class Parser(object):
             node = self.compound_statement()
         elif nToken.Compare(token, TokenType.IDENTIFIER) \
              and self.lexer.current_char == TokenType.LPAREN.value:
-            node = self.proccall_statement()
+            left = self.proccall_statement()
+            if nToken.Compare(self.current_token, nToken.TokenType.ASSIGN):
+                op = self.current_token     
+                node = left
+                self.eat(TokenType.ASSIGN)
+                right = self.expr()
+                node = AST.Assign(left, op, right)
+            else:
+                node = left
         elif nToken.Compare(token, TokenType.WHILE):
             node = self.WhileBlock()
         elif nToken.Compare(token, TokenType.IDENTIFIER):

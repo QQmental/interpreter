@@ -194,8 +194,13 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
             eval_expr.type_descriptor.array_len //= eval_expr.type_descriptor.dimension_size_list[0]
             eval_expr.type_descriptor.dimension -= 1
             del(eval_expr.type_descriptor.dimension_size_list[0])
+            
+            if eval_expr.type_descriptor.dimension == 0:
+                eval_expr.type_descriptor.array_len = 0
+                eval_expr.type_descriptor.dimension_size_list = None
+
         node.type_descriptor = eval_expr.type_descriptor
-        return EvalExprInfo(node.type_descriptor)
+        return EvalExprInfo(node.type_descriptor, False)
 
 
     def visit_BinOp(self, node):
@@ -309,7 +314,7 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
         """
         node.assign_method = define_type_aassignd_method(var_symbol.type_descriptor)
         node.type_descriptor = var_symbol.type_descriptor
-        
+
         return EvalExprInfo(node.type_descriptor, False)
         
     def visit_MemberAccess(self, node):
@@ -327,7 +332,7 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
             
             val = var_symbol.member_set[node.right.left.token.value]
             def func():
-                return nDO.ValueObject(nDO.ValueObject.just_set, nDO.ValueObject.just_get, val)
+                return nDO.NaiveInitValueObject(val)
             node.get_val_obj = func
             node.type_descriptor = var_symbol.type_descriptor
 
@@ -358,17 +363,34 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
         for decl in node.decls:
             self.visit(decl)
 
+    def init_type_descp(self, type_descriptor:nTDS.TypeDescriptor):
+        if type_descriptor.nested_type_descriptor != None:
+            self.init_type_descp(type_descriptor.nested_type_descriptor)
+
     def visit_Type(self, node):
-        var_name = node.value
-        var_symbol = self.current_scope.lookup(var_name)
-        if var_symbol is None:
+        cur_type_descriptor = node.type_descriptor
+        while cur_type_descriptor.nested_type_descriptor != None:
+            cur_type_descriptor = cur_type_descriptor.nested_type_descriptor
+
+        var_name = cur_type_descriptor.name
+        type_symbol = self.current_scope.lookup(var_name)
+        if type_symbol is None:
             self.error(error_code = nError.ErrorCode.ID_NOT_FOUND, token=node.token)
         
+        cur_type_descriptor.type_class = type_symbol.type_descriptor.type_class
+        cur_type_descriptor.nested_type_descriptor = copy.deepcopy(type_symbol.type_descriptor.nested_type_descriptor)
+
+        if cur_type_descriptor != node.type_descriptor:
+            cur_type_descriptor.dimension = type_symbol.type_descriptor.dimension
+            cur_type_descriptor.dimension_size_list = copy.deepcopy(type_symbol.type_descriptor.dimension_size_list)
+            cur_type_descriptor.array_len = type_symbol.type_descriptor.array_len
+        
+
         # array of node.type_descriptor.type_class
         if len(node.dimension_size_expr_list) > 0:
             product = 1
             
-            node.type_descriptor.dimension = len(node.dimension_size_expr_list)
+            cur_type_descriptor.dimension = len(node.dimension_size_expr_list)
             xlist = []
             for dim_size_expr in node.dimension_size_expr_list:
                 eval_expr_info = self.visit(dim_size_expr)
@@ -383,11 +405,11 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
                 xlist.append(eval_expr_info.get())
                 product *= eval_expr_info.get()
             
-            node.type_descriptor.dimension_size_list = xlist
-            node.type_descriptor.array_len = product
+            cur_type_descriptor.dimension_size_list = xlist
+            cur_type_descriptor.array_len = product
             
-        elif node.type_descriptor.type_class == nTDS.TypeDescriptor.TypeClass.STRING:
-            node.type_descriptor.dimension_size_list = [1]
+        elif cur_type_descriptor.type_class == nTDS.TypeDescriptor.TypeClass.STRING:
+            cur_type_descriptor.dimension_size_list = [1]
         
 
     def visit_Control_flow_statement(self, node):
@@ -498,13 +520,12 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
         # Insert parameters into the procedure scope
         for param in node.para_node:
             self.visit(param.type_node)
-            type_symbol = self.current_scope.lookup(param.type_node.value)
-            param.type_node.type_descriptor = type_symbol.type_descriptor
 
             var_symbol = Symbol.VarSymbol(param.var_node.value, param.type_node)
             var_symbol.is_initialized = True
             self.current_scope.insert(var_symbol)
             self.visit(param.var_node)
+            
             proc_symbol.params.append((var_symbol, define_type_aassignd_method(var_symbol.type_descriptor)))
 
         self.visit(node.block_node)
@@ -525,8 +546,14 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
         node.type_descriptor = proc_symbol.return_type_node.type_descriptor
 
         for idx, param_node in enumerate(node.actual_params):
-            self.visit(param_node)
-            if proc_symbol.params[idx][0].type_descriptor.is_type_implicit_castable(param_node.type_descriptor) == False:
+            actual_para_expr_info = self.visit(param_node)
+            para_var_symbol = proc_symbol.params[idx][0]
+            if actual_para_expr_info.is_rvalue() == False:
+                type_descriptor = nTDS.TypeDescriptor(actual_para_expr_info.type_descriptor.name + "_ref", nTDS.TypeDescriptor.TypeClass.REFERENCE)
+                type_descriptor.nested_type_descriptor = actual_para_expr_info.type_descriptor
+                param_node.type_descriptor = type_descriptor
+                actual_para_expr_info = EvalExprInfo(param_node.type_descriptor, False, actual_para_expr_info.get())
+            if para_var_symbol.type_descriptor.is_type_implicit_castable(actual_para_expr_info.type_descriptor) == False:
                 self.error(error_code=nError.ErrorCode.PARAMETER_TYPE_MISMATCHED, 
                            token=node.token)
 

@@ -24,6 +24,12 @@ class CallStack:
                 return ar
         return None
     
+    def lookup_data_obj(self, name:str):
+        for ar in reversed(self._records):
+            if ar.get(name) != None:
+                return ar[name]
+        return None 
+
     def update_value(self, name:str, new_val):
         for ar in reversed(self._records):
             if ar.get(name) != None:
@@ -105,16 +111,17 @@ class Interpreter(nNodeVisitor.NodeVisitor):
             product *= size_list[head.left.type_descriptor.dimension - idx]
             idx += 1
             cur = cur.left
+
         var_name = head.left.value
-        ar = self.call_stack.lookup(var_name)
+        array = self.call_stack.lookup_data_obj(var_name).value
 
-        def setter(data_obj, val):
-            ar[var_name][sum] = head.left.assign_method(val)
+        def setter(val_obj, val):
+            val_obj.value[sum] = head.left.assign_method(val)
 
-        def getter(data_obj):
-            return ar[var_name][sum]
+        def getter(val_obj):
+            return val_obj.value[sum]
 
-        return nDO.ValueObject(setter, getter)       
+        return nDO.ValueObject(setter, getter, array)       
 
 
     def visit_BinOp(self, node):
@@ -149,7 +156,7 @@ class Interpreter(nNodeVisitor.NodeVisitor):
             value = self.visit(node.left).getter() >= self.visit(node.right).getter()
         elif nToken.Compare(node.op, nToken.TokenType.GT):
             value = self.visit(node.left).getter() > self.visit(node.right).getter()
-        return nDO.ValueObject(nDO.ValueObject.just_set, nDO.ValueObject.just_get, value)
+        return nDO.NaiveInitValueObject(value)
 
     def visit_Num(self, node):
         def setter(val_obj, val):
@@ -217,16 +224,7 @@ class Interpreter(nNodeVisitor.NodeVisitor):
     
     def visit_Var(self, node):
         var_name = node.value
-
-        def setter(data_obj, val):
-            ar = self.call_stack.lookup(var_name)
-            ar[var_name] = node.assign_method(val)
-
-        def getter(data_obj):
-            ar = self.call_stack.lookup(var_name)
-            return ar[var_name]
-        
-        return nDO.ValueObject(setter, getter)
+        return self.call_stack.lookup_data_obj(var_name)
 
     def visit_MemberAccess(self, node):
         return node.get_val_obj()
@@ -256,22 +254,28 @@ class Interpreter(nNodeVisitor.NodeVisitor):
         elif node.type == AST.Control_flow_statement.control_type.RETURN:
             value = self.visit(node.return_val).getter()
             self.return_flag = True
-            self.return_value = nDO.ValueObject(nDO.ValueObject.just_set,
-                                                nDO.ValueObject.just_get,
-                                                value)
+            
+            self.return_value = nDO.NaiveInitValueObject(value)
             
             
     def visit_VARsDecl(self, node):
         for var in node.var_list:
             var_name = var.value
+            
+            def setter(data_obj, val):
+                data_obj.value = var.assign_method(val)
+
+            def getter(data_obj):
+                return data_obj.value 
+        
             if node.type_node.type_descriptor.array_len == 0:
-                self.call_stack.top()[var_name] = 0
+                self.call_stack.top()[var_name] = nDO.ValueObject(setter, getter, 0)
                 if node.initilized_value != None:
                     data_obj = self.visit(var)
                     right_val = self.visit(node.initilized_value).getter()
                     data_obj.setter(right_val)
             else:
-                self.call_stack.top()[var_name] = [0] * node.type_node.type_descriptor.array_len
+                self.call_stack.top()[var_name] = nDO.ValueObject(setter, getter, [0] * node.type_node.type_descriptor.array_len) 
 
     def visit_ProcedureDecl(self, node):
         pass
@@ -339,7 +343,12 @@ class Interpreter(nNodeVisitor.NodeVisitor):
         procedure = node.ref_procedure
 
         for idx, para_node in enumerate(procedure.params):
-            ar[para_node[0].name] = para_node[1](self.visit(node.actual_params[idx]).getter())
+            val_obj = self.visit(node.actual_params[idx])
+            if node.actual_params[idx].type_descriptor.is_reference:
+                data_obj = nDO.ReferenceObject(val_obj)
+            else:
+                data_obj = nDO.NaiveInitValueObject(para_node[1](data_obj.getter()))
+            ar[para_node[0].name] = data_obj
 
         self.call_stack.push(ar)
         self.visit(procedure.block_node)

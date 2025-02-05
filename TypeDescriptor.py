@@ -31,6 +31,19 @@ class TypeDescriptor(object):
     def is_integral(self):
         return self.type_class.value  < self.TypeClass.m_INTEGER.value 
     
+
+    def is_type_equal(self, src):
+        if self.dimension != src.dimension:
+            return False
+        
+        if self.dimension_size_list != src.dimension_size_list:
+            return False
+        
+        if self.is_primitive() and src.is_primitive():
+            return self.type_class == src.type_class
+    
+        return self.type_class == src.type_class and self.name == src.name
+
     # implicitly cast src to self
     def is_type_implicit_castable(self, src):
         if self.dimension != src.dimension:
@@ -39,7 +52,13 @@ class TypeDescriptor(object):
         if self.dimension_size_list != src.dimension_size_list:
             return False
         
-        if self.type_class != src.type_class:
+        if self.type_class != TypeDescriptor.TypeClass.REFERENCE and src.type_class == TypeDescriptor.TypeClass.REFERENCE:
+            return self.is_type_equal(src.nested_type_descriptor)
+        
+        if self.type_class == TypeDescriptor.TypeClass.REFERENCE and src.type_class == TypeDescriptor.TypeClass.REFERENCE:
+            return self.nested_type_descriptor.is_type_equal(src.nested_type_descriptor)
+
+        if self.type_class != src.type_class:    
             if self.is_integral() and src.is_integral():
                 return True
             return False
