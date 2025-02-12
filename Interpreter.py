@@ -115,8 +115,8 @@ class Interpreter(nNodeVisitor.NodeVisitor):
         var_name = head.left.value
         array = self.call_stack.lookup_data_obj(var_name).value
 
-        def setter(val_obj, val):
-            val_obj.value[sum] = head.left.assign_method(val)
+        def setter(val_obj, src_data_obj):
+            val_obj.value[sum] = head.left.assign_method(src_data_obj).getter()
 
         def getter(val_obj):
             return val_obj.value[sum]
@@ -159,23 +159,23 @@ class Interpreter(nNodeVisitor.NodeVisitor):
         return nDO.NaiveInitValueObject(value)
 
     def visit_Num(self, node):
-        def setter(val_obj, val):
-            val_obj.value = val
+        def setter(val_obj, src_data_obj):
+            val_obj.value = src_data_obj.getter()
         def getter(val_obj):
             return val_obj.value
 
         return nDO.ValueObject(setter, getter, node.value)
 
     def visit_BoolVal(self, node):   
-        def setter(val_obj, val):
-            val_obj.value = val == True
+        def setter(val_obj, src_data_obj):
+            val_obj.value = src_data_obj.getter() == True
         def getter(val_obj):
             return val_obj.value
         
         return nDO.ValueObject(setter, getter, node.value)
 
     def visit_StringVal(self, node):
-        def setter(val_obj, val):
+        def setter(val_obj, src_data_obj):
             pass
         def getter(val_obj):
             return val_obj.value
@@ -183,7 +183,7 @@ class Interpreter(nNodeVisitor.NodeVisitor):
         return nDO.ValueObject(setter, getter, node.value)
 
     def visit_CharVal(self, node):
-        def setter(val_obj, val):
+        def setter(val_obj, src_data_obj):
             pass
         def getter(val_obj):
             return val_obj.value
@@ -194,11 +194,11 @@ class Interpreter(nNodeVisitor.NodeVisitor):
         data_obj = self.visit(node.expr)
 
         if nToken.Compare(node.op, nToken.TokenType.PLUS):
-            data_obj.setter(data_obj.getter() * 1)
+            data_obj.setter(nDO.NaiveInitValueObject(data_obj.getter() * 1))
         elif nToken.Compare(node.op, nToken.TokenType.MINUS):
-            data_obj.setter(data_obj.getter() * -1)
+            data_obj.setter(nDO.NaiveInitValueObject(data_obj.getter() * -1))
         elif nToken.Compare(node.op, nToken.TokenType.NOT):
-            data_obj.setter(not data_obj.getter())
+            data_obj.setter(nDO.NaiveInitValueObject(not data_obj.getter()))
         return data_obj
 
     def visit_Compound(self, node):
@@ -209,18 +209,19 @@ class Interpreter(nNodeVisitor.NodeVisitor):
 
     def visit_Assign(self, node):
         data_obj = self.visit(node.left)
-        right_val = self.visit(node.right).getter()
+        src_data_obj = self.visit(node.right)
+        right_val = src_data_obj.getter()
         if node.op.value == ':=' or node.op.value == '=':
-            data_obj.setter(right_val)                 
+            data_obj.setter(src_data_obj)                 
         else:
             if node.op.value == '+=':
-                data_obj.setter(data_obj.getter() + right_val)
+                data_obj.setter(nDO.NaiveInitValueObject(data_obj.getter() + right_val))
             elif node.op.value == '-=':
-                data_obj.setter(data_obj.getter() - right_val)
+                data_obj.setter(nDO.NaiveInitValueObject(data_obj.getter() - right_val))
             elif node.op.value == '*=':
-                data_obj.setter(data_obj.getter() * right_val)
+                data_obj.setter(nDO.NaiveInitValueObject(data_obj.getter() * right_val))
             elif node.op.value == '/=':
-                data_obj.setter(data_obj.getter() / right_val)                                
+                data_obj.setter(nDO.NaiveInitValueObject(data_obj.getter() / right_val))      
     
     def visit_Var(self, node):
         var_name = node.value
@@ -252,28 +253,29 @@ class Interpreter(nNodeVisitor.NodeVisitor):
         elif  node.type == AST.Control_flow_statement.control_type.CONTINUE:
             self.continue_flag = True
         elif node.type == AST.Control_flow_statement.control_type.RETURN:
-            value = self.visit(node.return_val).getter()
             self.return_flag = True
-            
-            self.return_value = nDO.NaiveInitValueObject(value)
+            value = node.return_val.assign_method(self.visit(node.return_val))
+            self.return_value = value
             
             
     def visit_VARsDecl(self, node):
         for var in node.var_list:
             var_name = var.value
             
-            def setter(data_obj, val):
-                data_obj.value = var.assign_method(val)
+            def setter(data_obj, src_data_obj):
+                data_obj.value = var.assign_method(src_data_obj).getter()
 
             def getter(data_obj):
                 return data_obj.value 
         
             if node.type_node.type_descriptor.array_len == 0:
-                self.call_stack.top()[var_name] = nDO.ValueObject(setter, getter, 0)
+                
                 if node.initilized_value != None:
-                    data_obj = self.visit(var)
-                    right_val = self.visit(node.initilized_value).getter()
-                    data_obj.setter(right_val)
+                    dst_data_obj = self.visit(var)
+                    right_data_obj = self.visit(node.initilized_value)
+                    self.call_stack.top()[var_name] = var.assign_method(right_data_obj) 
+                else:
+                    self.call_stack.top()[var_name] = nDO.ValueObject(setter, getter, 0)
             else:
                 self.call_stack.top()[var_name] = nDO.ValueObject(setter, getter, [0] * node.type_node.type_descriptor.array_len) 
 
@@ -344,10 +346,7 @@ class Interpreter(nNodeVisitor.NodeVisitor):
 
         for idx, para_node in enumerate(procedure.params):
             val_obj = self.visit(node.actual_params[idx])
-            if node.actual_params[idx].type_descriptor.is_reference:
-                data_obj = nDO.ReferenceObject(val_obj)
-            else:
-                data_obj = nDO.NaiveInitValueObject(para_node[1](data_obj.getter()))
+            data_obj = para_node[1](val_obj)
             ar[para_node[0].name] = data_obj
 
         self.call_stack.push(ar)

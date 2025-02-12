@@ -53,10 +53,16 @@ class TypeDescriptor(object):
             return False
         
         if self.type_class != TypeDescriptor.TypeClass.REFERENCE and src.type_class == TypeDescriptor.TypeClass.REFERENCE:
-            return self.is_type_equal(src.nested_type_descriptor)
+            return self.is_type_implicit_castable(src.nested_type_descriptor)
         
         if self.type_class == TypeDescriptor.TypeClass.REFERENCE and src.type_class == TypeDescriptor.TypeClass.REFERENCE:
             return self.nested_type_descriptor.is_type_equal(src.nested_type_descriptor)
+
+        if self.type_class == TypeDescriptor.TypeClass.VOID and src.type_class != TypeDescriptor.TypeClass.VOID:
+            return False
+        
+        if self.type_class != TypeDescriptor.TypeClass.VOID and src.type_class == TypeDescriptor.TypeClass.VOID:
+            return False        
 
         if self.type_class != src.type_class:    
             if self.is_integral() and src.is_integral():

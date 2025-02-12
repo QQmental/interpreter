@@ -97,6 +97,7 @@ class Var(AST):
         self.token = token
         # value is the name of this varriable
         self.value = token.value 
+        #assign to this or from this var
         self.assign_method = assign_method
 
 

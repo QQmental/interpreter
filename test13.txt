@@ -1,68 +1,96 @@
 program Main;
 
-var a, b, c : integer;
-var x : integer;
-var y : integer;
-var z : integer;
-var arr : integer[3][4][5];
+var a, b : integer := 16;
+var c: bool := 0;
+var str:String;
+var d: integer := a;
 
-
-procedure Max(c : integer; a :integer; rrr:REAL)->integer;
-var xxx :integer[a + -- (15 * a - c)];
-begin { Gamma }
-   IF c > a
-      return c
-   else if 1 begin
-      return a;
-   end
-   else begin
-      c += 3;
-      a *= 100;
-      return 5;
-   end;
-
-   return a;
+Enum MyEnum begin
+   mb := 2,
+   mb2 := 1,
+   mb3 := -10,
 end;
 
+Enum MyEnum2 begin
+   xx := MyEnum.mb,
+   mb
+end;
+
+var zzzz:Enum MyEnum2 := MyEnum2.mb;
 
 
-procedure Gamma(c : integer; a :integer)->integer;
-   var x : integer;
-begin { Gamma }
-   x := a + c;
-   x := 25+19 +x;
-   return 3;
-end;  { Gamma }
-
-procedure Fibo(num : integer)->integer;
-var z : integer;
+procedure fibo(num:integer)->integer;
 begin
-   IF num == 0 || num == 1 begin
-      return 1;
-   end;
-
-   return Fibo(num-1) + Fibo(num-2);
+   IF num == 1 || num == 0
+      return num;
+   return fibo(num-1) + fibo(num-2);
 end;
 
-begin { Main }
-   a := 10[3];
-   x := 0;
-   y := 10;
-   z := 0;
-   if 1 begin
-      Fibo(10);
-      {-Gamma(1, 3);}
-      a := Max(Fibo(20), 100, 0.5);
-      WHILE x < 8 && z < 5 begin
-         y += 10;
-         {WHILE a < 10 begin
-            a += 1;
-            break;
-            z += 1;
-         end;}
-         z += 1;
-         x += 1;
-      end;
-   end;
-end.  { Main }
 
+procedure func(src:enum MyEnum2)->BOOL;
+begin
+   IF src == MyEnum2.xx && a > 0
+      return True;
+   return False;
+end;
+
+procedure func2(arg: BOOL)->BOOL;
+begin
+   IF arg == True
+      return True;
+   return False;
+end;
+
+
+procedure func3(arg: integer&)->integer&;
+var A, B : integer := 550;
+var C : bool := True;
+begin
+   arg  = 999;
+   return arg;
+end;
+
+
+procedure func4(arg: enum MyEnum2&)->enum MyEnum2&;
+var A, B : integer := 550;
+
+begin
+   return arg;
+end;
+
+
+var arr : integer[MyEnum2.xx][3*1+MyEnum2.xx];
+var brr : integer[4];
+var e1 : enum MyEnum2 := MyEnum2.xx;
+begin { Main }
+   a += 10;
+   b = 1;
+   var rrref:integer& <- a;
+
+   WHILE func(MyEnum2.xx)
+      a -= 3;
+   str = "asdsfdf";
+
+   b = fibo(4);
+   c = func(MyEnum2.mb);
+   arr[0][4] := 2;
+   arr[0][1] := 15;
+   arr[1][fibo(4)] := 1305;
+
+   c = func2('x');
+
+   a = func3(arr[0][0]);
+   func3(arr[0][1]);
+   func3(arr[0][2]);
+   func3(arr[0][3]);
+   func3(a);
+
+   func3(a) := 5;
+   func3(b) := 6;
+
+
+   var e2 : enum MyEnum2& <- func4(e1);
+   e2 = MyEnum2.mb;
+   
+
+end.  { Main }

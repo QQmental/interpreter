@@ -45,13 +45,18 @@ BUILTIN_TYPE_BINOP_TABLE = {(nToken.TokenType.PLUS, nTDS.TypeDescriptor.TypeClas
                             (nToken.TokenType.GTE,         nTDS.TypeDescriptor.TypeClass.BOOL,    nTDS.TypeDescriptor.TypeClass.BOOL,    nTDS.TypeDescriptor.TypeClass.BOOL),
                         }
 
-def define_type_aassignd_method(type_descriptor:nTDS.TypeDescriptor):
+def define_type_aassignd_method(type_descriptor:nTDS.TypeDescriptor, is_decl:bool):
     if type_descriptor.type_class == nTDS.TypeDescriptor.TypeClass.BOOL: #cast the val into a BOOl value
-        return  lambda val : val != 0
+        return  lambda data_obj : nDO.NaiveInitValueObject(data_obj.getter() != 0)
     elif type_descriptor.type_class == nTDS.TypeDescriptor.TypeClass.STRING:
-        return  lambda val : val
+        return  lambda data_obj : nDO.NaiveInitValueObject(data_obj.getter())
+    elif type_descriptor.is_reference():
+        if is_decl == True:
+            return lambda data_obj : nDO.ReferenceObject(data_obj.ref())
+        else:
+            return lambda data_obj : data_obj
     else:
-        return lambda val : val
+        return lambda data_obj : nDO.NaiveInitValueObject(data_obj.getter())
 
 
 
@@ -60,7 +65,12 @@ class EvalExprInfo(object):
         self.type_descriptor = type_descriptor
         self.m_is_rvalue = is_rvalue
         self.constexpr_value_ = constexpr_value
-        pass
+
+        """if self.is_rvalue() == False and self.type_class() != nTDS.TypeDescriptor.TypeClass.REFERENCE:
+            nested_type_descriptor = self.type_descriptor
+            self.type_descriptor = nTDS.TypeDescriptor(self.type_descriptor.name+"_ref", nTDS.TypeDescriptor.TypeClass.REFERENCE)
+            self.type_descriptor.nested_type_descriptor = nested_type_descriptor
+        pass"""
 
     def get(self):
         return self.constexpr_value_
@@ -186,18 +196,27 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
     def visit_Subscript(self, node):
         if (node.level == 1):
             if nToken.Compare(node.left.token, nToken.TokenType.IDENTIFIER) == False:
-                self.error(error_code=nError.ErrorCode.UNEXPECTED_TOKEN, token=node.left.token) 
+                self.error(error_code=nError.ErrorCode.UNEXPECTED_TOKEN, token=node.left.token)
+            
         
         self.visit(node.inside)
         eval_expr = copy.deepcopy(self.visit(node.left))
-        if eval_expr.type_descriptor.array_len:
-            eval_expr.type_descriptor.array_len //= eval_expr.type_descriptor.dimension_size_list[0]
-            eval_expr.type_descriptor.dimension -= 1
-            del(eval_expr.type_descriptor.dimension_size_list[0])
+
+        if (node.level == 1):
+            node.left.assign_method = define_type_aassignd_method(node.left.type_descriptor, False)       
+       
+        tmp_type_descriptor = eval_expr.type_descriptor
+        if tmp_type_descriptor.is_reference():
+            tmp_type_descriptor = eval_expr.type_descriptor.nested_type_descriptor
+
+        if tmp_type_descriptor.array_len:
+            tmp_type_descriptor.array_len //= tmp_type_descriptor.dimension_size_list[0]
+            tmp_type_descriptor.dimension -= 1
+            del(tmp_type_descriptor.dimension_size_list[0])
             
-            if eval_expr.type_descriptor.dimension == 0:
-                eval_expr.type_descriptor.array_len = 0
-                eval_expr.type_descriptor.dimension_size_list = None
+            if tmp_type_descriptor.dimension == 0:
+                tmp_type_descriptor.array_len = 0
+                tmp_type_descriptor.dimension_size_list = None
 
         node.type_descriptor = eval_expr.type_descriptor
         return EvalExprInfo(node.type_descriptor, False)
@@ -282,23 +301,25 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
 
         if node.op.value == ':=' or node.op.value == '=':
             self.visit(node.right)
-            self.visit(node.left)
+            expr_info = self.visit(node.left)
         elif node.op.value == '+=':
             self.visit(node.right)
-            self.visit(node.left)
+            expr_info = self.visit(node.left)
         elif node.op.value == '-=':
             self.visit(node.right)
-            self.visit(node.left)
+            expr_info = self.visit(node.left)
         elif node.op.value == '*=':
             self.visit(node.right)
-            self.visit(node.left)
+            expr_info = self.visit(node.left)
         elif node.op.value == '/=':
             self.visit(node.right)
-            self.visit(node.left)
+            expr_info = self.visit(node.left)
         else:
             self.error()
         if self.compare_type(node.right, nTDS.TypeDescriptor.TypeClass.VOID):
             self.error(error_code=nError.ErrorCode.ASSIGNED_WITH_VOID, token=node.right.token)
+        
+        node.left.assign_method = define_type_aassignd_method(expr_info.type_descriptor, False)
 
     def visit_Var(self, node):
         var_name = node.value
@@ -312,9 +333,8 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
                 "Error: access uninitialized variable'%s'" % var_name
             )
         """
-        node.assign_method = define_type_aassignd_method(var_symbol.type_descriptor)
+        #node.assign_method = define_type_aassignd_method(var_symbol.type_descriptor)
         node.type_descriptor = var_symbol.type_descriptor
-
         return EvalExprInfo(node.type_descriptor, False)
         
     def visit_MemberAccess(self, node):
@@ -337,7 +357,7 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
             node.type_descriptor = var_symbol.type_descriptor
 
             tds = nTDS.TypeDescriptor(var_symbol.name, nTDS.TypeDescriptor.TypeClass.ENUM)
-            return EvalExprInfo(tds, False, val)
+            return EvalExprInfo(tds, True, val)
         
         return EvalExprInfo()
 
@@ -423,15 +443,15 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
             if scope == None or scope.ar_tpye != nNodeVisitor.ARType.LOOP:
                 self.error(error_code = nError.ErrorCode.BREAK_ERROR, token=node.token)
         elif node.type == AST.Control_flow_statement.control_type.RETURN:
-            self.visit(node.return_val)
+            return_val_expr_info = self.visit(node.return_val)
             while scope != None and scope.ar_tpye != nNodeVisitor.ARType.PROCEDURE and scope.ar_tpye != nNodeVisitor.ARType.PROGRAM:
                 scope = scope.parent_scope
             proc_symobl = scope.lookup(scope.scope_name)
-            f1 = proc_symobl.return_type_node.type_descriptor.type_class == nTDS.TypeDescriptor.TypeClass.VOID
-            f2 = node.return_val.type_descriptor.type_class == nTDS.TypeDescriptor.TypeClass.VOID
-            if f1 != f2:
+
+            if proc_symobl.return_type_node.type_descriptor.is_type_implicit_castable(return_val_expr_info.type_descriptor) == False:
                 self.error(error_code = nError.ErrorCode.UNMATCHED_RETURN_VALUE, token=node.token)
 
+            node.return_val.assign_method = define_type_aassignd_method(proc_symobl.return_type_node.type_descriptor, True)
             
 
     def visit_VARsDecl(self, node):
@@ -456,6 +476,7 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
             self.current_scope.insert(var_symbol)
 
             self.visit(var)
+            var.assign_method = define_type_aassignd_method(node.type_node.type_descriptor, True)
         
         if node.initilized_value != None:
             expr_info = self.visit(node.initilized_value)
@@ -526,7 +547,7 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
             self.current_scope.insert(var_symbol)
             self.visit(param.var_node)
             
-            proc_symbol.params.append((var_symbol, define_type_aassignd_method(var_symbol.type_descriptor)))
+            proc_symbol.params.append((var_symbol, define_type_aassignd_method(var_symbol.type_descriptor, True)))
 
         self.visit(node.block_node)
 
@@ -557,7 +578,7 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
                 self.error(error_code=nError.ErrorCode.PARAMETER_TYPE_MISMATCHED, 
                            token=node.token)
 
-        return EvalExprInfo(proc_symbol.return_type_node.type_descriptor, proc_symbol.return_type_node.type_descriptor.is_reference())
+        return EvalExprInfo(proc_symbol.return_type_node.type_descriptor, not proc_symbol.return_type_node.type_descriptor.is_reference())
 
     def visit_Block(self, node):
         self.visit(node.declarations)

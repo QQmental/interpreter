@@ -26,21 +26,12 @@ Enum MyEnum begin
    mb3,
 end;
 
-procedure Max2(c : integer; a :integer; rrr:REAL)->integer;
-var xxx :integer[5];
-begin { Gamma }
-   IF c > a
-      return c
-   else if 1 begin
-      return a;
-   end
-   else begin
-      c += 3;
-      a *= 100;
-      return 5;
-   end;
+procedure fibo(num:integer)->integer;
 
-   return a;
+begin
+   IF num == 1 || num == 0
+      return num;
+   return fibo(num-1) + fibo(num-2);
 end;
 
 Enum MyEnum2 begin
@@ -53,7 +44,7 @@ begin { Main }
    sum := 0;
    z1 := 0;
    z2 := 0;
-   z3 := 0;
+   z3 := fibo(6);
 
    while z1 < 3 begin
       z2 := 0;
