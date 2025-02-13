@@ -328,6 +328,8 @@ class Interpreter(nNodeVisitor.NodeVisitor):
             elif self.break_flag == True:
                 self.break_flag = False
                 break
+            elif self.return_flag == True:
+                break
     
     def visit_ForBlock(self, node):
         self.log(f'ENTER: FOR {node.token}')
@@ -351,7 +353,8 @@ class Interpreter(nNodeVisitor.NodeVisitor):
                 self.continue_flag = False
             for post_statement in node.post_statements:
                 self.visit(post_statement)
-        
+            if self.return_flag == True:
+                break
         self.log(f'LEAVE: FOR {node.token}')
         self.log(str(self.call_stack))    
         self.call_stack.pop()

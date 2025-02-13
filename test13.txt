@@ -21,7 +21,7 @@ var zzzz:Enum MyEnum2 := MyEnum2.mb;
 procedure Test();
 begin
    for [var x:integer:=5; var y:integer:=5] ( x > 0 ; x-=1, x += -1, b-= 3)begin
-
+      return;
    end;
 end;
 

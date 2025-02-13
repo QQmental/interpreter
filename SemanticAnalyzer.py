@@ -55,6 +55,8 @@ def define_type_aassignd_method(type_descriptor:nTDS.TypeDescriptor, is_decl:boo
             return lambda data_obj : nDO.ReferenceObject(data_obj.ref())
         else:
             return lambda data_obj : data_obj
+    elif type_descriptor.type_class == nTDS.TypeDescriptor.TypeClass.VOID:
+        return lambda data_obj : nDO.NaiveInitValueObject(None)
     else:
         return lambda data_obj : nDO.NaiveInitValueObject(data_obj.getter())
 
@@ -362,7 +364,8 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
         return EvalExprInfo()
 
     def visit_NoOp(self, node):
-        pass
+        tds = nTDS.TypeDescriptor(nToken.TokenType.VOID.name, nTDS.TypeDescriptor.TypeClass.VOID)
+        return EvalExprInfo(tds, True)
 
     def visit_EnumDecl(self, node):
         print(node.token, len(node.member_pair_list))
