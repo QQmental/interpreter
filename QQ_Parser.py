@@ -245,11 +245,14 @@ class Parser(object):
 
         return AST.Cond_statements(if_blocks)
     
-    def var_start_statement(self):
-        if self.lexer.overlook(0) == ":" and self.lexer.overlook(1) == "=":
-            return self.assignment_statement()
+    def assign_or_expr(self):
+        left = self.expr()
+        if nToken.Compare(self.current_token, nToken.TokenType.ASSIGN):
+            op = self.current_token
+            self.eat(nToken.TokenType.ASSIGN)
+            return AST.Assign(left, op, self.expr())
         else:
-            return self.expr()
+            return left
 
     def statement(self):
         """
@@ -279,6 +282,8 @@ class Parser(object):
                 node = left
         elif nToken.Compare(token, TokenType.WHILE):
             node = self.WhileBlock()
+        elif nToken.Compare(token, TokenType.FOR):
+            node = self.ForBlock()
         elif nToken.Compare(token, TokenType.IDENTIFIER):
             left = self.expr()
             if nToken.Compare(self.current_token, nToken.TokenType.ASSIGN):
@@ -354,6 +359,46 @@ class Parser(object):
         else:
             statement_list = self.statement()
         return AST.WhileBlock(token, statement_list, cond)
+
+    def ForBlock(self):
+        token = self.current_token
+        self.eat(nToken.TokenType.FOR) #for
+        decls = []
+        cond = None
+        post_statements = []
+
+        if nToken.Compare(self.current_token, nToken.TokenType.LEFT_BRACKET): 
+            self.eat(nToken.TokenType.LEFT_BRACKET) #[
+            while nToken.Compare(self.current_token, nToken.TokenType.RIGHT_BRACKET) == False:
+                statement = self.variable_declaration() #(var xx ;)*
+                if nToken.Compare(self.current_token, nToken.TokenType.SEMI):
+                    self.eat(nToken.TokenType.SEMI)
+                if statement == None:
+                    self.error(ErrorCode.UNEXPECTED_TOKEN, self.current_token)
+                else:
+                    decls.append(statement)
+            self.eat(nToken.TokenType.RIGHT_BRACKET) #]
+
+        self.eat(nToken.TokenType.LPAREN) #(
+        if nToken.Compare(self.current_token, nToken.TokenType.SEMI):
+            cond = None
+        else:
+            cond = self.expr()            #stop cond
+        self.eat(nToken.TokenType.SEMI)   #SEMI
+        if nToken.Compare(self.current_token, nToken.TokenType.RPAREN) == False:
+            post_statements.append(self.assign_or_expr())   #assign_or_expr (, assign_or_expr)*
+            while nToken.Compare(self.current_token, nToken.TokenType.COMMA):
+                self.eat(nToken.TokenType.COMMA)
+                post_statements.append(self.assign_or_expr())
+        self.eat(nToken.TokenType.RPAREN)                   # RPAREN
+
+        if self.current_token.type == TokenType.BEGIN.name:
+            statement_list = self.compound_statement()
+        else:
+            statement_list = self.statement()   
+
+
+        return AST.ForBlock(token, statement_list, decls, cond, post_statements)
 
     def compound_statement(self):
         """
@@ -506,7 +551,7 @@ class Parser(object):
             self.eat(TokenType.RIGHT_ARROW)
             return_type = self.type_spec()
         else:
-            return_type = AST.Type(nToken.Token(TokenType.VOID.name, "VOID", lineno=-1, column=-1), [])
+            return_type = AST.Type(nToken.Token(TokenType.VOID.name, "VOID", lineno=-1, column=-1), [], False)
 
         self.eat(TokenType.SEMI)
         block_node = self.block()
@@ -522,7 +567,7 @@ class Parser(object):
         self.eat(TokenType.IDENTIFIER)
         self.eat(TokenType.LPAREN)
         actual_params = []
-        while self.current_token != TokenType.RPAREN.value:
+        while nToken.Compare(self.current_token, TokenType.RPAREN) == False:
             actual_params.append(self.expr())
             if self.current_token.value == TokenType.COMMA.value:
                 self.eat(TokenType.COMMA)

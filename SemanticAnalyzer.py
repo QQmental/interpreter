@@ -520,6 +520,30 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
         self.visit(node.statement_list)
         self.current_scope = self.current_scope.parent_scope
 
+    def visit_ForBlock(self, node):
+        loop_scope = ScopedSymbolTable(
+            scope_name = str(node.token),
+            scope_level= self.current_scope.scope_level + 1,
+            ar_type = nNodeVisitor.ARType.LOOP,
+            parent_scope = self.current_scope
+        )
+        self.current_scope = loop_scope
+    
+        for decl in node.var_decls:
+            self.visit(decl)
+        
+        if node.condition == None: #synthetic node
+            token = nToken.Token(nToken.TokenType.BOOL.name, True, -1, -1)
+            AST.BoolVal(token)
+        
+        self.visit(node.condition)
+        self.visit(node.statement_list)
+        for post_statement in node.post_statements:
+            self.visit(post_statement)
+
+        self.current_scope = self.current_scope.parent_scope
+        pass
+
     def visit_ProcedureDecl(self, node):
         self.visit(node.return_type_node)
         proc_name = node.proc_name

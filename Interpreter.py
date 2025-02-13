@@ -329,6 +329,34 @@ class Interpreter(nNodeVisitor.NodeVisitor):
                 self.break_flag = False
                 break
     
+    def visit_ForBlock(self, node):
+        self.log(f'ENTER: FOR {node.token}')
+        
+        ar = ActivationRecord(
+                name = node.token,
+                type = nNodeVisitor.ARType.LOOP,
+                nesting_level = self.call_stack.top().nesting_level + 1,
+            ) 
+        self.call_stack.push(ar)        
+        
+        for decl in node.var_decls:
+            self.visit(decl)
+
+        while self.visit(node.condition).getter() != False:
+            self.visit(node.statement_list)
+            if self.break_flag == True:
+                self.break_flag = False
+                break
+            if self.continue_flag == True:
+                self.continue_flag = False
+            for post_statement in node.post_statements:
+                self.visit(post_statement)
+        
+        self.log(f'LEAVE: FOR {node.token}')
+        self.log(str(self.call_stack))    
+        self.call_stack.pop()
+        pass
+
     def visit_Block(self, node):
         self.visit(node.declarations)
         self.visit(node.compound_statement)

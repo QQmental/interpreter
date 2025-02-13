@@ -18,6 +18,12 @@ end;
 
 var zzzz:Enum MyEnum2 := MyEnum2.mb;
 
+procedure Test();
+begin
+   for [var x:integer:=5; var y:integer:=5] ( x > 0 ; x-=1, x += -1, b-= 3)begin
+
+   end;
+end;
 
 procedure fibo(num:integer)->integer;
 begin
@@ -65,7 +71,7 @@ var e1 : enum MyEnum2 := MyEnum2.xx;
 begin { Main }
    a += 10;
    b = 1;
-   var rrref:integer& <- a;
+{   var rrref:integer& <- a;
 
    WHILE func(MyEnum2.xx)
       a -= 3;
@@ -83,14 +89,10 @@ begin { Main }
    func3(arr[0][1]);
    func3(arr[0][2]);
    func3(arr[0][3]);
-   func3(a);
+   func3(a);}
 
-   func3(a) := 5;
-   func3(b) := 6;
+   Test();
 
-
-   var e2 : enum MyEnum2& <- func4(e1);
-   e2 = MyEnum2.mb;
    
 
 end.  { Main }

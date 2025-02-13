@@ -47,6 +47,7 @@ class TokenType(Enum):
     IF = 'IF'
     ELSE = 'ELSE'
     WHILE = 'WHILE'
+    FOR = 'FOR'
     CONTINUE = 'CONTINUE'
     BREAK = 'BREAK'
     RETURN = 'RETURN'
@@ -64,9 +65,9 @@ class TokenType(Enum):
 RESERVED_KEYWORDS = [TokenType.INTEGER, TokenType.REAL,        TokenType.BOOL,        TokenType.VOID, 
                      TokenType.CHAR,    TokenType.STRING,      TokenType.INTEGER_DIV, TokenType.BEGIN, 
                      TokenType.END,     TokenType.PROGRAM,     TokenType.PROCEDURE,   TokenType.IF,
-                     TokenType.ELSE,    TokenType.WHILE,       TokenType.CONTINUE,    TokenType.BREAK, 
-                     TokenType.RETURN,  TokenType.VAR,         TokenType.TRUE,        TokenType.FALSE, 
-                     TokenType.ENUM]
+                     TokenType.ELSE,    TokenType.WHILE,       TokenType.FOR,         TokenType.CONTINUE,
+                     TokenType.BREAK,   TokenType.RETURN,      TokenType.VAR,         TokenType.TRUE,
+                     TokenType.FALSE,   TokenType.ENUM]
 
 BUILTIN_TYPES = [TokenType.INTEGER, TokenType.REAL, TokenType.BOOL, TokenType.VOID, TokenType.CHAR, TokenType.STRING, TokenType.ENUM]
 

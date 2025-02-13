@@ -122,7 +122,7 @@ class Type(AST):
         else:
             self.type_descriptor = nTDS.TypeDescriptor(self.value)
         
-        if is_ref_type:
+        if is_ref_type == True:
             ref_type_descriptor = nTDS.TypeDescriptor(self.value + "_ref", nTDS.TypeDescriptor.TypeClass.REFERENCE)
             ref_type_descriptor.nested_type_descriptor = self.type_descriptor
             self.type_descriptor = ref_type_descriptor
@@ -171,6 +171,17 @@ class WhileBlock(AST):
         self.token = token
         self.condition = condition
         self.statement_list = statement_list    
+
+class ForBlock(AST):
+    def __init__(self, token, statement_list, var_decls = None, condition = None, post_statements = None):
+        self.token = token
+        self.statement_list = statement_list
+        self.var_decls = var_decls
+        self.condition = condition
+        if post_statements != None:
+            self.post_statements = post_statements
+        else:
+            self.post_statements = []
 
 class Control_flow_statement(AST):
     class control_type(Enum):
