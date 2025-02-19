@@ -344,21 +344,23 @@ class Parser(object):
         else:
             cond = None
         if self.current_token.type == TokenType.BEGIN.name:
-            statement_list = self.compound_statement()
+            statement = self.compound_statement()
         else:
-            statement_list = self.statement()
-        ret = AST.IfBlock(self.current_token, statement_list, cond)
+            statement = self.statement()
+        ret = AST.IfBlock(self.current_token, statement, cond)
         return ret
 
     def WhileBlock(self):
         token = self.current_token
         self.eat(TokenType.WHILE)
+        self.eat(TokenType.LPAREN)
         cond = self.expr()
+        self.eat(TokenType.RPAREN)
         if self.current_token.type == TokenType.BEGIN.name:
-            statement_list = self.compound_statement()
+            statement = self.compound_statement()
         else:
-            statement_list = self.statement()
-        return AST.WhileBlock(token, statement_list, cond)
+            statement = self.statement()
+        return AST.WhileBlock(token, statement, cond)
 
     def ForBlock(self):
         token = self.current_token
@@ -393,12 +395,12 @@ class Parser(object):
         self.eat(nToken.TokenType.RPAREN)                   # RPAREN
 
         if self.current_token.type == TokenType.BEGIN.name:
-            statement_list = self.compound_statement()
+            statement = self.compound_statement()
         else:
-            statement_list = self.statement()   
+            statement = self.statement()   
 
 
-        return AST.ForBlock(token, statement_list, decls, cond, post_statements)
+        return AST.ForBlock(token, statement, decls, cond, post_statements)
 
     def compound_statement(self):
         """
@@ -631,10 +633,9 @@ class Parser(object):
         """program : PROGRAM variable SEMI block DOT"""
         self.eat(TokenType.PROGRAM)
         node = self.variable()
-        prog_name = node.value
         self.eat(TokenType.SEMI)
         block_node = self.block()
-        program_node = AST.Program(prog_name, block_node)
+        program_node = AST.Program(node, block_node)
         self.eat(TokenType.DOT)
         return program_node
 

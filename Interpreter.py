@@ -3,88 +3,12 @@ import NodeVisitor as nNodeVisitor
 import Token as nToken
 import AST
 import DataObject as nDO
+import CallStack as nCallStack
     
-
-class CallStack:
-    def __init__(self):
-        self._records = []
-
-    def push(self, ar):
-        self._records.append(ar)
-
-    def pop(self):
-        return self._records.pop()
-
-    def top(self):
-        return self._records[-1]
-    
-    def lookup(self, name:str):
-        for ar in reversed(self._records):
-            if ar.get(name) != None:
-                return ar
-        return None
-    
-    def lookup_data_obj(self, name:str):
-        for ar in reversed(self._records):
-            if ar.get(name) != None:
-                return ar[name]
-        return None 
-
-    def update_value(self, name:str, new_val):
-        for ar in reversed(self._records):
-            if ar.get(name) != None:
-                ar[name] = new_val
-                break
-
-    def __str__(self):
-        s = '\n'.join(repr(ar) for ar in reversed(self._records))
-        s = f'CALL STACK\n{s}\n'
-        return s
-
-    def __repr__(self):
-        return self.__str__()
-
-
-class ActivationRecord:
-    return_value = None
-    def __init__(self, name, type, nesting_level):
-        self.name = name
-        self.type = type
-        self.nesting_level = nesting_level
-        self.members = {}
-
-
-    def __setitem__(self, key, value):
-        self.members[key] = value
-
-    def __getitem__(self, key):
-        return self.members[key]
-
-    def get(self, key):
-        return self.members.get(key)
-
-    def __str__(self):
-        lines = [
-            '{level}: {type} {name}'.format(
-                level=self.nesting_level,
-                type=self.type.value,
-                name=self.name,
-            )
-        ]
-        for name, val in self.members.items():
-            lines.append(f'   {name:<20}: {val}')
-
-        s = '\n'.join(lines)
-        return s
-
-    def __repr__(self):
-        return self.__str__()
-    
-
 class Interpreter(nNodeVisitor.NodeVisitor):
     def __init__(self, tree):
         self.tree = tree
-        self.call_stack = CallStack()
+        self.call_stack = nCallStack.CallStack()
         self.break_flag = False
         self.continue_flag = False
         self.return_flag = False
@@ -112,8 +36,8 @@ class Interpreter(nNodeVisitor.NodeVisitor):
             idx += 1
             cur = cur.left
 
-        var_name = head.left.value
-        array = self.call_stack.lookup_data_obj(var_name).value
+        var = head.left
+        array = var.access_method(self.call_stack).value
 
         def setter(val_obj, src_data_obj):
             val_obj.value[sum] = head.left.assign_method(src_data_obj).getter()
@@ -225,7 +149,7 @@ class Interpreter(nNodeVisitor.NodeVisitor):
     
     def visit_Var(self, node):
         var_name = node.value
-        return self.call_stack.lookup_data_obj(var_name)
+        return node.access_method(self.call_stack)
 
     def visit_MemberAccess(self, node):
         return node.get_val_obj()
@@ -253,8 +177,8 @@ class Interpreter(nNodeVisitor.NodeVisitor):
         elif  node.type == AST.Control_flow_statement.control_type.CONTINUE:
             self.continue_flag = True
         elif node.type == AST.Control_flow_statement.control_type.RETURN:
-            self.return_flag = True
             value = node.return_val.assign_method(self.visit(node.return_val))
+            self.return_flag = True
             self.return_value = value
             
             
@@ -271,13 +195,12 @@ class Interpreter(nNodeVisitor.NodeVisitor):
             if node.type_node.type_descriptor.array_len == 0:
                 
                 if node.initilized_value != None:
-                    dst_data_obj = self.visit(var)
                     right_data_obj = self.visit(node.initilized_value)
-                    self.call_stack.top()[var_name] = var.assign_method(right_data_obj) 
+                    self.call_stack.top().store(var.var_offset, var.assign_method(right_data_obj), var_name)
                 else:
-                    self.call_stack.top()[var_name] = nDO.ValueObject(setter, getter, 0)
+                    self.call_stack.top().store(var.var_offset, nDO.ValueObject(setter, getter, 0), var_name)
             else:
-                self.call_stack.top()[var_name] = nDO.ValueObject(setter, getter, [0] * node.type_node.type_descriptor.array_len) 
+                self.call_stack.top().store(var.var_offset, nDO.ValueObject(setter, getter, [0] * node.type_node.type_descriptor.array_len), var_name)
 
     def visit_ProcedureDecl(self, node):
         pass
@@ -288,18 +211,9 @@ class Interpreter(nNodeVisitor.NodeVisitor):
         if node.condition != None and self.visit(node.condition).getter() == False:
             return False
 
-        self.log(f'ENTER: IF {node.token}')
-        ar = ActivationRecord(
-            name = node.token,
-            type = nNodeVisitor.ARType.IF,
-            nesting_level = self.call_stack.top().nesting_level + 1,
-        )
-        self.call_stack.push(ar)
-        
-        self.visit(node.statement_list)
+        self.visit(node.statement)
         self.log(f'LEAVE: IF {node.token}')
         self.log(str(self.call_stack))
-        self.call_stack.pop()
 
         return True
 
@@ -309,19 +223,9 @@ class Interpreter(nNodeVisitor.NodeVisitor):
                 break
         
     def visit_WhileBlock(self, node):
+        self.log(f'ENTER: WHILE {node.token}')
         while self.visit(node.condition).getter() != False:
-            self.log(f'ENTER: WHILE {node.token}')
-            ar = ActivationRecord(
-                name = node.token,
-                type = nNodeVisitor.ARType.LOOP,
-                nesting_level = self.call_stack.top().nesting_level + 1,
-            )
-            self.call_stack.push(ar)
-
-            self.visit(node.statement_list)
-            self.log(f'LEAVE: WHILE {node.token}')
-            self.log(str(self.call_stack))
-            self.call_stack.pop()
+            self.visit(node.statement)
 
             if self.continue_flag == True:
                 self.continue_flag = False
@@ -330,22 +234,18 @@ class Interpreter(nNodeVisitor.NodeVisitor):
                 break
             elif self.return_flag == True:
                 break
+            
+        self.log(f'LEAVE: WHILE {node.token}')
+        self.log(str(self.call_stack))
     
     def visit_ForBlock(self, node):
         self.log(f'ENTER: FOR {node.token}')
-        
-        ar = ActivationRecord(
-                name = node.token,
-                type = nNodeVisitor.ARType.LOOP,
-                nesting_level = self.call_stack.top().nesting_level + 1,
-            ) 
-        self.call_stack.push(ar)        
-        
+           
         for decl in node.var_decls:
             self.visit(decl)
 
         while self.visit(node.condition).getter() != False:
-            self.visit(node.statement_list)
+            self.visit(node.statement)
             if self.break_flag == True:
                 self.break_flag = False
                 break
@@ -357,7 +257,6 @@ class Interpreter(nNodeVisitor.NodeVisitor):
                 break
         self.log(f'LEAVE: FOR {node.token}')
         self.log(str(self.call_stack))    
-        self.call_stack.pop()
         pass
 
     def visit_Block(self, node):
@@ -367,10 +266,11 @@ class Interpreter(nNodeVisitor.NodeVisitor):
     def visit_ProcedureCall(self, node):
         self.log(f'ENTER: PROCEDURE {node.proc_name}')
 
-        ar = ActivationRecord(
+        ar = nCallStack.ActivationRecord(
             name = node.proc_name,
             type = nNodeVisitor.ARType.PROCEDURE,
             nesting_level = self.call_stack.top().nesting_level + 1,
+            space = node.ref_procedure.max_var_count
         )
 
         procedure = node.ref_procedure
@@ -378,7 +278,7 @@ class Interpreter(nNodeVisitor.NodeVisitor):
         for idx, para_node in enumerate(procedure.params):
             val_obj = self.visit(node.actual_params[idx])
             data_obj = para_node[1](val_obj)
-            ar[para_node[0].name] = data_obj
+            ar.store(para_node[0].var_offset, data_obj, para_node[0].name)
 
         self.call_stack.push(ar)
         self.visit(procedure.block_node)
@@ -396,15 +296,16 @@ class Interpreter(nNodeVisitor.NodeVisitor):
         self.program_name = node.name
         self.log(f'ENTER: PROGRAM {self.program_name}')
 
-        ar = ActivationRecord(
+        ar = nCallStack.ActivationRecord(
             name = self.program_name,
             type = nNodeVisitor.ARType.PROGRAM,
             nesting_level = 1,
+            space = node.ref_procedure.max_var_count
         )
         self.call_stack.push(ar)
 
         self.log(str(self.call_stack))
-        self.visit(node.block)
+        self.visit(node.ref_procedure.block_node)
 
         self.log(f'LEAVE: PROGRAM {self.program_name}')
         self.log(str(self.call_stack))
@@ -416,4 +317,5 @@ class Interpreter(nNodeVisitor.NodeVisitor):
         tree = self.tree
         if tree is None:
             return ''
+
         return self.visit(tree)

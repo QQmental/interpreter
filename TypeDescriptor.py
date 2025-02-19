@@ -29,7 +29,10 @@ class TypeDescriptor(object):
         return self.type_class == self.TypeClass.REFERENCE
     
     def is_integral(self):
-        return self.type_class.value  < self.TypeClass.m_INTEGER.value 
+        if self.is_reference():
+            return self.nested_type_descriptor.is_inteegral()
+        return self.type_class.value  < self.TypeClass.m_INTEGER.value or \
+                self.type_class.value == self.TypeClass.ENUM.value 
     
 
     def is_type_equal(self, src):

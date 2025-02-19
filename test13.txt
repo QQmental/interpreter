@@ -18,17 +18,10 @@ end;
 
 var zzzz:Enum MyEnum2 := MyEnum2.mb;
 
-procedure Test();
-begin
-   for [var x:integer:=5; var y:integer:=5] ( x > 0 ; x-=1, x += -1, b-= 3)begin
-      return;
-   end;
-end;
-
 procedure fibo(num:integer)->integer;
 begin
    IF num == 1 || num == 0
-      return num;
+      return 1;
    return fibo(num-1) + fibo(num-2);
 end;
 
@@ -64,24 +57,26 @@ begin
    return arg;
 end;
 
-
 var arr : integer[MyEnum2.xx][3*1+MyEnum2.xx];
 var brr : integer[4];
 var e1 : enum MyEnum2 := MyEnum2.xx;
 begin { Main }
    a += 10;
    b = 1;
-{   var rrref:integer& <- a;
 
-   WHILE func(MyEnum2.xx)
+   var rrref:integer& <- a;
+
+   WHILE(func(MyEnum2.xx))
       a -= 3;
    str = "asdsfdf";
 
-   b = fibo(4);
+
+   b = fibo(20);
+
    c = func(MyEnum2.mb);
    arr[0][4] := 2;
    arr[0][1] := 15;
-   arr[1][fibo(4)] := 1305;
+  
 
    c = func2('x');
 
@@ -89,9 +84,18 @@ begin { Main }
    func3(arr[0][1]);
    func3(arr[0][2]);
    func3(arr[0][3]);
-   func3(a);}
 
-   Test();
+
+
+   for [var i:integer:=0] (i < 5 ; i += 1) begin
+      for [var j:integer:=0] (j < 5 ; j += 1) begin
+         a += 1;
+      end;       
+   end;
+
+   while (a > 1000)
+      a -= 1;
+   func3(rrref);
 
    
 

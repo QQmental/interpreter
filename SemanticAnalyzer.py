@@ -3,10 +3,10 @@ import Symbol
 import AST
 import Token as nToken
 import Error as nError
-from collections import OrderedDict
 from LogOption import _SHOULD_LOG_SCOPE
 import DataObject as nDO
 import TypeDescriptor as nTDS
+import CallStack as nCallStack
 import copy
 
 BUILTIN_TYPE_BINOP_TABLE = {(nToken.TokenType.PLUS, nTDS.TypeDescriptor.TypeClass.INTEGER,     nTDS.TypeDescriptor.TypeClass.INTEGER, nTDS.TypeDescriptor.TypeClass.INTEGER),
@@ -68,12 +68,6 @@ class EvalExprInfo(object):
         self.m_is_rvalue = is_rvalue
         self.constexpr_value_ = constexpr_value
 
-        """if self.is_rvalue() == False and self.type_class() != nTDS.TypeDescriptor.TypeClass.REFERENCE:
-            nested_type_descriptor = self.type_descriptor
-            self.type_descriptor = nTDS.TypeDescriptor(self.type_descriptor.name+"_ref", nTDS.TypeDescriptor.TypeClass.REFERENCE)
-            self.type_descriptor.nested_type_descriptor = nested_type_descriptor
-        pass"""
-
     def get(self):
         return self.constexpr_value_
     
@@ -87,9 +81,7 @@ class EvalExprInfo(object):
         return self.m_is_rvalue
     
     def is_integral(self)->bool:
-        return self.type_class() == nTDS.TypeDescriptor.TypeClass.INTEGER or \
-               self.type_class() == nTDS.TypeDescriptor.TypeClass.BOOL or \
-               self.type_class() == nTDS.TypeDescriptor.TypeClass.ENUM
+        return self.type_descriptor.is_integral()
     
     def is_constexpr(self)->bool:
         return self.constexpr_value_ != None
@@ -108,13 +100,21 @@ def Eval_expr(lhs, rhs, bin_op, type_class = None):
         return EvalExprInfo(tds, True)        
 
 
+
 class ScopedSymbolTable(object):
-    def __init__(self, scope_name, scope_level, ar_type:nNodeVisitor.ARType, parent_scope = None):
-        self._symbols = OrderedDict()
+    global_scope_level = 1
+    def __init__(self, scope_name, scope_level, ar_type:nNodeVisitor.ARType, parent_scope):
+        self._symbols = {}
         self.scope_name = scope_name
         self.scope_level = scope_level
         self.ar_tpye = ar_type
         self.parent_scope = parent_scope
+        self.max_var_count = 0
+        self.var_count = 0
+        if self.parent_scope != None and self.ar_tpye != nNodeVisitor.ARType.PROCEDURE:
+            self.var_count = self.parent_scope.var_count
+            self.max_var_count = self.var_count
+            
         self._init_builtins()
 
     def log(self, msg):
@@ -178,6 +178,9 @@ class ScopedSymbolTable(object):
 
         if symbol != None:
             return self.scope_level
+        return None
+    def is_global_scope(self):
+        return self.scope_level == ScopedSymbolTable.global_scope_level
 
 
 class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
@@ -200,7 +203,6 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
             if nToken.Compare(node.left.token, nToken.TokenType.IDENTIFIER) == False:
                 self.error(error_code=nError.ErrorCode.UNEXPECTED_TOKEN, token=node.left.token)
             
-        
         self.visit(node.inside)
         eval_expr = copy.deepcopy(self.visit(node.left))
 
@@ -335,7 +337,12 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
                 "Error: access uninitialized variable'%s'" % var_name
             )
         """
-        #node.assign_method = define_type_aassignd_method(var_symbol.type_descriptor)
+        node.var_offset = var_symbol.var_offset
+        if var_symbol.is_on_stack_symbol:
+            node.access_method = lambda call_stack : call_stack.top()[node.var_offset]
+        else:
+            node.access_method = lambda call_stack : call_stack.bot()[node.var_offset]
+
         node.type_descriptor = var_symbol.type_descriptor
         return EvalExprInfo(node.type_descriptor, False)
         
@@ -346,7 +353,6 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
             self.error(error_code=nError.ErrorCode.ID_NOT_FOUND, token=node.left.token)
         
         if var_symbol.type_class() == nTDS.TypeDescriptor.TypeClass.ENUM:
-            print(str(var_symbol.name) + " is enum!")
             if node.right.right != None:
                 self.error(error_code=nError.ErrorCode.UNEXPECTED_TOKEN, token=node.right.right.left.token)
             if var_symbol.member_set.get(node.right.left.token.value) == None:
@@ -368,8 +374,6 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
         return EvalExprInfo(tds, True)
 
     def visit_EnumDecl(self, node):
-        print(node.token, len(node.member_pair_list))
-
         member_set = {}
         val = 0
         for pair in node.member_pair_list:
@@ -474,8 +478,7 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
                     token=node.var_node.token,
                 )
             
-            var_symbol = Symbol.VarSymbol(var_name, node.type_node)
-
+            var_symbol = create_var_symbol(self.current_scope , var_name, self.current_scope.scope_level != 1, node.type_node)
             self.current_scope.insert(var_symbol)
 
             self.visit(var)
@@ -502,10 +505,10 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
             ar_type = nNodeVisitor.ARType.IF,
             parent_scope = self.current_scope
         )
-        self.current_scope = if_scope
-        self.visit(node.statement_list)
-        self.current_scope = self.current_scope.parent_scope        
-        pass
+
+        self.enter_new_socpe(if_scope, lambda : self.visit(node.statement))
+        self.current_scope.max_var_count = max(self.current_scope.max_var_count, if_scope.max_var_count)
+        
 
     def visit_Cond_statements(self, node):
         for cond_block in node.if_blocks:
@@ -519,9 +522,9 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
             ar_type = nNodeVisitor.ARType.LOOP,
             parent_scope = self.current_scope
         )
-        self.current_scope = loop_scope
-        self.visit(node.statement_list)
-        self.current_scope = self.current_scope.parent_scope
+
+        self.enter_new_socpe(loop_scope, lambda : self.visit(node.statement))      
+        self.current_scope.max_var_count = max(self.current_scope.max_var_count, loop_scope.max_var_count)
 
     def visit_ForBlock(self, node):
         loop_scope = ScopedSymbolTable(
@@ -539,20 +542,24 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
             token = nToken.Token(nToken.TokenType.BOOL.name, True, -1, -1)
             AST.BoolVal(token)
         
-        self.visit(node.condition)
-        self.visit(node.statement_list)
-        for post_statement in node.post_statements:
-            self.visit(post_statement)
-
-        self.current_scope = self.current_scope.parent_scope
-        pass
+        def visit_method():
+            self.visit(node.condition)
+            self.visit(node.statement)
+            for post_statement in node.post_statements:
+                self.visit(post_statement)
+        
+        self.enter_new_socpe(loop_scope, visit_method)
+        self.current_scope.max_var_count = max(self.current_scope.max_var_count, loop_scope.max_var_count)
 
     def visit_ProcedureDecl(self, node):
-        self.visit(node.return_type_node)
         proc_name = node.proc_name
-        proc_symbol = Symbol.ProcedureSymbol(proc_name,
-                                             node.return_type_node,  
-                                             node.block_node)
+        if self.current_scope.lookup(proc_name) != None:
+            self.error(nError.ErrorCode.DUPLICATE_ID, node.token)
+
+        self.visit(node.return_type_node)
+        proc_symbol = Symbol.CallableSymbol(proc_name,
+                                            node.return_type_node,  
+                                            node.block_node)
         self.current_scope.insert(proc_symbol)
 
         self.log('ENTER scope: %s' %  proc_name)
@@ -563,25 +570,21 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
             ar_type = nNodeVisitor.ARType.PROCEDURE,
             parent_scope = self.current_scope
         )
-        self.current_scope = procedure_scope
 
         # Insert parameters into the procedure scope
         for param in node.para_node:
             self.visit(param.type_node)
-
-            var_symbol = Symbol.VarSymbol(param.var_node.value, param.type_node)
+            var_symbol = create_var_symbol(procedure_scope, param.var_node.value, True, param.type_node)
             var_symbol.is_initialized = True
             self.current_scope.insert(var_symbol)
             self.visit(param.var_node)
             
             proc_symbol.params.append((var_symbol, define_type_aassignd_method(var_symbol.type_descriptor, True)))
 
-        self.visit(node.block_node)
+        self.enter_new_socpe(procedure_scope, lambda : self.visit(node.block_node))     
+        proc_symbol.max_var_count = procedure_scope.max_var_count
 
-        self.log(procedure_scope)
-        self.log('LEAVE scope: %s' %  proc_name)
-        self.current_scope = self.current_scope.parent_scope
-    
+
     def visit_ProcedureCall(self, node):
         proc_symbol = self.current_scope.lookup(node.proc_name)
         
@@ -596,7 +599,7 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
         for idx, param_node in enumerate(node.actual_params):
             actual_para_expr_info = self.visit(param_node)
             para_var_symbol = proc_symbol.params[idx][0]
-            if actual_para_expr_info.is_rvalue() == False:
+            if actual_para_expr_info.is_rvalue() == False and actual_para_expr_info.type_descriptor.is_reference() == False:
                 type_descriptor = nTDS.TypeDescriptor(actual_para_expr_info.type_descriptor.name + "_ref", nTDS.TypeDescriptor.TypeClass.REFERENCE)
                 type_descriptor.nested_type_descriptor = actual_para_expr_info.type_descriptor
                 param_node.type_descriptor = type_descriptor
@@ -615,16 +618,32 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
         self.log('ENTER scope: global')
         global_scope = ScopedSymbolTable(
             scope_name='global',
-            scope_level=1,
-            ar_type = nNodeVisitor.ARType.PROGRAM
+            scope_level=ScopedSymbolTable.global_scope_level,
+            ar_type = nNodeVisitor.ARType.PROGRAM,
+            parent_scope = None
         )
-        self.current_scope = global_scope
+        
+        token = nToken.Create_reserved_keyword_token(nToken.TokenType.INTEGER.value)
+        token.column = -1
+        token.lineno = -1
+        always_return_int = AST.Type(token, [], False)
 
-        # visit subtree
-        self.visit(node.block)
+        prog_name = node.name
 
-        self.log(global_scope)
-        self.log('LEAVE scope: global')
+        prog_symbol = Symbol.CallableSymbol(prog_name,
+                                            always_return_int,  
+                                            node.block_node)
+        node.ref_procedure = prog_symbol
+
+        def visit_method():
+            self.visit(always_return_int)
+
+            self.current_scope.insert(prog_symbol)
+            self.visit(node.block_node)
+        
+        max_var_count = self.enter_new_socpe(global_scope, lambda : visit_method())
+        prog_symbol.max_var_count = max_var_count
+        
     
     def compare_type(self, node, type_class:nTDS.TypeDescriptor.TypeClass):
         return node.type_descriptor.type_class == type_class
@@ -649,3 +668,18 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
                 closest_tup = tup
 
         return nTDS.TypeDescriptor("", closest_tup[3])
+    
+    def enter_new_socpe(self, new_scope, visit_method):
+        self.current_scope = new_scope  
+        visit_method()
+        self.log(new_scope)
+        self.log('LEAVE scope: %s' %  new_scope.scope_name)
+        max_var_count = self.current_scope.max_var_count
+        self.current_scope = self.current_scope.parent_scope
+        return max_var_count
+
+def create_var_symbol(scope:ScopedSymbolTable, name:str, is_on_stack_symbol: bool, type_node: AST.Type):
+    offset = scope.var_count
+    scope.var_count += 1
+    scope.max_var_count = max(scope.var_count, scope.max_var_count)
+    return Symbol.VarSymbol(name, is_on_stack_symbol, type_node, offset)

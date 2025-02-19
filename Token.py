@@ -99,3 +99,11 @@ class Token(object):
 def Compare(token:Token, token_type:TokenType):
     return token.type == token_type.name
 
+
+def Create_reserved_keyword_token(val:str):
+    val = val.upper()
+    for reserved_keyword in RESERVED_KEYWORDS:
+        if val == reserved_keyword.value:
+            return Token(reserved_keyword.name, val)
+    return None
+

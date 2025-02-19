@@ -1,7 +1,6 @@
 import Token as nToken
 from enum import Enum
 import TypeDescriptor as nTDS
-import copy
 
 class AST(object):
     pass
@@ -96,10 +95,11 @@ class Var(AST):
     def __init__(self, token, assign_method = None):
         self.token = token
         # value is the name of this varriable
-        self.value = token.value 
+        self.value = token.value
         #assign to this or from this var
         self.assign_method = assign_method
-
+        self.access_method = None
+        self.var_offset = 0
 
 class Type(AST):
     type_descriptor = None
@@ -155,10 +155,10 @@ class Block(AST):
 
 
 class IfBlock(AST):
-    def __init__(self, token, statement_list, condition = None):
+    def __init__(self, token, statement, condition = None):
         self.token = token
         self.condition = condition
-        self.statement_list = statement_list
+        self.statement = statement
 
 
 class Cond_statements(AST):
@@ -167,15 +167,15 @@ class Cond_statements(AST):
 
 
 class WhileBlock(AST):
-    def __init__(self, token, statement_list, condition = None):
+    def __init__(self, token, statement, condition = None):
         self.token = token
         self.condition = condition
-        self.statement_list = statement_list    
+        self.statement = statement    
 
 class ForBlock(AST):
-    def __init__(self, token, statement_list, var_decls = None, condition = None, post_statements = None):
+    def __init__(self, token, statement, var_decls = None, condition = None, post_statements = None):
         self.token = token
-        self.statement_list = statement_list
+        self.statement = statement
         self.var_decls = var_decls
         self.condition = condition
         if post_statements != None:
@@ -209,16 +209,18 @@ class ProcedureDecl(AST):
 
 
 class ProcedureCall(ValueNode):
-    def __init__(self, proc_name, actual_params, token, procedure:ProcedureDecl = None):
+    def __init__(self, proc_name, actual_params, token):
         super().__init__()
         self.proc_name = proc_name
         self.actual_params = actual_params  # a list of AST nodes
         self.token = token
-        self.ref_procedure = procedure
+        self.ref_procedure = None
         
 
 
 class Program(AST):
-    def __init__(self, name, block):
-        self.name = name
-        self.block = block
+    def __init__(self, node:Var, block_node):
+        self.token = node.token
+        self.name = node.token.value
+        self.block_node = block_node
+        self.ref_procedure = None        

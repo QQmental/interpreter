@@ -49,20 +49,13 @@ class Lexer(object):
         else:
             return None
 
-    def check_reserved_word(self, val:str):
-        val = val.upper()
-        for reserved_keyword in nToken.RESERVED_KEYWORDS:
-            if val == reserved_keyword.value:
-                return Token(reserved_keyword.name, val)
-        return None
-
     def pick_identifier(self):
         val = ''
         while self.current_char != None and self.current_char.isalnum():
             val += self.current_char
             self.advance()
 
-        maybe_token = self.check_reserved_word(val)
+        maybe_token = nToken.Create_reserved_keyword_token(val)
 
         if maybe_token != None:
             return maybe_token
