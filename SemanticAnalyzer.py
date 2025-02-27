@@ -6,7 +6,6 @@ import Error as nError
 from LogOption import _SHOULD_LOG_SCOPE
 import DataObject as nDO
 import TypeDescriptor as nTDS
-import CallStack as nCallStack
 import copy
 
 BUILTIN_TYPE_BINOP_TABLE = {(nToken.TokenType.PLUS, nTDS.TypeDescriptor.TypeClass.INTEGER,     nTDS.TypeDescriptor.TypeClass.INTEGER, nTDS.TypeDescriptor.TypeClass.INTEGER),
@@ -463,7 +462,7 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
 
     def visit_VARsDecl(self, node):
         self.visit(node.type_node)
-        type_symbol = self.current_scope.lookup(node.type_node.value)
+        type_symbol = self.current_scope.lookup(node.type_node.symbol_string())
 
         if type_symbol.type_class() == nTDS.TypeDescriptor.TypeClass.VOID:
             self.error(
@@ -488,9 +487,12 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
             expr_info = self.visit(node.initilized_value)
         
         if var_symbol.type_descriptor.type_class == nTDS.TypeDescriptor.TypeClass.REFERENCE:
+            if node.assignment_symbol == "":
+                self.error(error_code=nError.ErrorCode.INVALID_VARIABLE_INITILIZATION, 
+                           token=str(node.type_node.token) + "reference variable should be assigned when it's declared")
             if node.assignment_symbol != nToken.TokenType.LEFT_ARROW.value:
                 self.error(error_code=nError.ErrorCode.INVALID_VARIABLE_INITILIZATION, 
-                           token=str(node.type_node.token) + "reference variable should be assign with <-, rather than node.assignment_symbol")
+                           token=str(node.type_node.token) + "reference variable should be assigned with <-, rather than node.assignment_symbol")
             if expr_info.is_rvalue() == True:
                 self.error(error_code=nError.ErrorCode.INVALID_VARIABLE_INITILIZATION, 
                            token=str(node.initilized_value.token) + "reference variable should be assign with a lvalue")
@@ -553,14 +555,18 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
 
     def visit_ProcedureDecl(self, node):
         proc_name = node.proc_name
-        if self.current_scope.lookup(proc_name) != None:
-            self.error(nError.ErrorCode.DUPLICATE_ID, node.token)
+        targ_proc_symbol = self.current_scope.lookup(proc_name)
+
 
         self.visit(node.return_type_node)
         proc_symbol = Symbol.CallableSymbol(proc_name,
-                                            node.return_type_node,  
-                                            node.block_node)
-        self.current_scope.insert(proc_symbol)
+                                            node.return_type_node)
+        
+        proc_symbol.set_definition(node.block_node, node.token)
+
+        if targ_proc_symbol != None and targ_proc_symbol.is_defined() == True and proc_symbol.is_defined() == True:
+            err_msg = "{token}, first defined at {prev_token}".format(token = node.token, prev_token = targ_proc_symbol.definition_token)
+            self.error(  nError.ErrorCode.REDEFINE_FUNC, err_msg)  
 
         self.log('ENTER scope: %s' %  proc_name)
         # Scope for parameters and local variables
@@ -574,6 +580,12 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
         # Insert parameters into the procedure scope
         for param in node.para_node:
             self.visit(param.type_node)
+            
+            if nToken.Compare(param.var_node.token, nToken.TokenType.COLON):
+                if proc_symbol.is_defined() == True:
+                    self.error(error_code=nError.ErrorCode.ANONYMOUS_PARAMETER, token=param.var_node.token)
+                else:
+                    continue
             var_symbol = create_var_symbol(procedure_scope, param.var_node.value, True, param.type_node)
             var_symbol.is_initialized = True
             self.current_scope.insert(var_symbol)
@@ -581,8 +593,25 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
             
             proc_symbol.params.append((var_symbol, define_type_aassignd_method(var_symbol.type_descriptor, True)))
 
-        self.enter_new_socpe(procedure_scope, lambda : self.visit(node.block_node))     
-        proc_symbol.max_var_count = procedure_scope.max_var_count
+
+        if targ_proc_symbol == None:
+            self.current_scope.insert(proc_symbol)
+            targ_proc_symbol = proc_symbol
+        else:
+            error_callback = lambda error_code : self.error(error_code=error_code, token=node.token)
+
+            callable_type_compare(proc_symbol, targ_proc_symbol, error_callback)
+
+            if targ_proc_symbol.is_defined() and proc_symbol.is_defined():
+                self.error(error_code=nError.ErrorCode.DUPLICATE_ID, token=node.token)
+            
+            #targ_proc_symbol.block_node = proc_symbol.block_node
+
+            targ_proc_symbol.set_definition(proc_symbol.block_node, proc_symbol.definition_token)
+
+        if targ_proc_symbol.is_defined():
+            self.enter_new_socpe(procedure_scope, lambda : self.visit(targ_proc_symbol.block_node))     
+            targ_proc_symbol.max_var_count = procedure_scope.max_var_count
 
 
     def visit_ProcedureCall(self, node):
@@ -626,20 +655,21 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
         token = nToken.Create_reserved_keyword_token(nToken.TokenType.INTEGER.value)
         token.column = -1
         token.lineno = -1
-        always_return_int = AST.Type(token, [], False)
+        always_return_int = AST.Type(token, [], None)
 
         prog_name = node.name
 
         prog_symbol = Symbol.CallableSymbol(prog_name,
-                                            always_return_int,  
-                                            node.block_node)
+                                            always_return_int)
+        
+        prog_symbol.set_definition(node.block_node, node.token)
         node.ref_procedure = prog_symbol
 
         def visit_method():
             self.visit(always_return_int)
-
             self.current_scope.insert(prog_symbol)
             self.visit(node.block_node)
+            self.visit(node.declarations)
         
         max_var_count = self.enter_new_socpe(global_scope, lambda : visit_method())
         prog_symbol.max_var_count = max_var_count
@@ -683,3 +713,13 @@ def create_var_symbol(scope:ScopedSymbolTable, name:str, is_on_stack_symbol: boo
     scope.var_count += 1
     scope.max_var_count = max(scope.var_count, scope.max_var_count)
     return Symbol.VarSymbol(name, is_on_stack_symbol, type_node, offset)
+
+def callable_type_compare(lhs:Symbol.CallableSymbol, rhs:Symbol.CallableSymbol, error_callback):
+    for idx, param in enumerate(lhs.params):
+        if param[0].type_descriptor.is_type_equal(rhs.params[idx][0].type_descriptor) == False:
+            error_callback(nError.ErrorCode.REDECL_PROC_PARAMETER_TYPE_MISMATCHED)
+            return False
+        if lhs.return_type_node.type_descriptor.is_type_equal(rhs.return_type_node.type_descriptor) == False:
+            error_callback(nError.ErrorCode.REDECL_PROC_RETURB_TYPE_MISMATCHED)
+            return False
+    return True

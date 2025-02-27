@@ -95,6 +95,9 @@ class Parser(object):
         elif token.type == TokenType.CHAR.name:
             self.eat(TokenType.CHAR)
             return AST.CharVal(token)
+        elif token.type == TokenType.POINTER.name:
+            self.eat(TokenType.POINTER)
+            return AST.UnaryOp(token, self.factor1())
         elif token.type == TokenType.PLUS.name:
             self.eat(TokenType.PLUS)
             return AST.UnaryOp(token, self.factor1())
@@ -436,16 +439,50 @@ class Parser(object):
                 self.eat(TokenType.IDENTIFIER)
 
         dim_size_expr_list = []
+        cur_type = AST.Type(token, [], None)
+
+        while True:
+            if nToken.Compare(self.current_token, nToken.TokenType.REFERNECE):
+                current_token = self.current_token
+                self.eat(nToken.TokenType.REFERNECE)
+                nested_type_node = cur_type
+                cur_type = AST.Type(current_token, [], nested_type_node)
+            elif nToken.Compare(self.current_token, nToken.TokenType.LEFT_BRACKET):
+                dim_size_expr_list = self.array_range_spec()
+                cur_type = AST.Type(cur_type.token, dim_size_expr_list, cur_type.nested_type)
+            else:
+                break
+
+        return cur_type
+    
+
+    def array_range_spec(self):
+        dim_size_expr_list = []
         while nToken.Compare(self.current_token, nToken.TokenType.LEFT_BRACKET):
             self.eat(nToken.TokenType.LEFT_BRACKET)
             dim_size_expr_list.append(self.expr())
             self.eat(nToken.TokenType.RIGHT_BRACKET)
+        return dim_size_expr_list
+
+    #return a pair, pair.first => [formal_parameter], pair.second => return type of the callable:AST.Type
+    def callable_type_spec(self):
+        param_list = []
+        if nToken.Compare(self.current_token, TokenType.LPAREN):# parse parameters
+            self.eat(TokenType.LPAREN)
+            if nToken.Compare(self.current_token, TokenType.RPAREN) == False:
+                param_list = self.formal_parameter_list()
+            self.eat(TokenType.RPAREN)                  # complete parsing parameters
         
-        if nToken.Compare(self.current_token, nToken.TokenType.REFERNECE):
-            self.eat(nToken.TokenType.REFERNECE)
-            return AST.Type(token, dim_size_expr_list, True)
-        return AST.Type(token, dim_size_expr_list, False)
+        #parse return value type, if no 'return type' is represented, then 
+        # return type is void 
+        if nToken.Compare(self.current_token, TokenType.RIGHT_ARROW): 
+            self.eat(TokenType.RIGHT_ARROW)
+            return_type = self.type_spec()
+        else:
+            return_type = AST.Type(nToken.Token(TokenType.VOID.name, "VOID", lineno=-1, column=-1), [], None)
         
+        return (param_list, return_type)
+
     def variable_declaration(self):
         """variable_declaration : VAR ID (COMMA ID)* COLON type_spec (:= expr)"""
 
@@ -477,31 +514,29 @@ class Parser(object):
 
 
     def formal_parameters(self):
-        """ formal_parameters : ID (COMMA ID)* COLON type_spec """
-        token_list = [self.current_token]  # first ID
-        self.eat(TokenType.IDENTIFIER)
-        while self.current_token.type == TokenType.COMMA.name:
-            self.eat(TokenType.COMMA)
-            token_list.append(self.current_token)
+        """ formal_parameters : ID COLON type_spec """
+        token = self.current_token  # first ID
+        
+        if nToken.Compare(self.current_token, TokenType.COLON) == False:
             self.eat(TokenType.IDENTIFIER)
+
         self.eat(TokenType.COLON)
         t = self.type_spec()
-        
-        param_list = []
-        for param_token in token_list:
-            param_node = AST.Param(AST.Var(param_token), t)
-            param_list.append(param_node)
 
-        return param_list
+        param_node = AST.Param(AST.Var(token), t)
+
+        return param_node
 
     def formal_parameter_list(self):
         """ formal_parameter_list : formal_parameters
-                                | formal_parameters SEMI formal_parameter_list
+                                  | formal_parameters COMMA formal_parameter_list
         """
-        param_list = self.formal_parameters()
-        while self.current_token.type == TokenType.SEMI.name:
-            self.eat(TokenType.SEMI)
-            param_list.extend(self.formal_parameters())
+        param_list = []
+        param_list.append(self.formal_parameters())
+
+        while nToken.Compare(self.current_token, TokenType.COMMA):
+            self.eat(TokenType.COMMA)
+            param_list.append(self.formal_parameters())
 
         return param_list
 
@@ -539,27 +574,21 @@ class Parser(object):
         
         self.eat(TokenType.PROCEDURE)
         procedure_name = self.variable()
-        
-        param_list = []
-        if self.current_token.type == TokenType.LPAREN.name:# parse parameters
-            self.eat(TokenType.LPAREN)
-            if self.current_token.type != TokenType.RPAREN.name:
-                param_list = self.formal_parameter_list()
-            self.eat(TokenType.RPAREN)                  # complete parsing parameters
-        
-        #parse return value type, if no 'return type' is represented, then 
-        # return type is void 
-        if nToken.Compare(self.current_token, TokenType.RIGHT_ARROW): 
-            self.eat(TokenType.RIGHT_ARROW)
-            return_type = self.type_spec()
-        else:
-            return_type = AST.Type(nToken.Token(TokenType.VOID.name, "VOID", lineno=-1, column=-1), [], False)
+        param_list = None
+        return_type = None
 
-        self.eat(TokenType.SEMI)
-        block_node = self.block()
-        self.eat(TokenType.SEMI)
+        param_list, return_type = self.callable_type_spec()
         
-        return AST.ProcedureDecl(procedure_name, param_list, return_type, block_node)
+        if nToken.Compare(self.current_token, TokenType.COLON): 
+            self.eat(TokenType.COLON)
+            block_node = self.block()
+            self.eat(TokenType.SEMI)
+            return AST.ProcedureDecl(procedure_name, param_list, return_type, block_node)
+        else: #just a declaration of procedure
+            self.eat(TokenType.SEMI)
+            return AST.ProcedureDecl(procedure_name, param_list, return_type, None)
+
+
 
     def proccall_statement(self):
         """proccall_statement : ID LPAREN (expr (COMMA expr)*)? RPAREN"""
@@ -635,8 +664,9 @@ class Parser(object):
         node = self.variable()
         self.eat(TokenType.SEMI)
         block_node = self.block()
-        program_node = AST.Program(node, block_node)
         self.eat(TokenType.DOT)
+        declarations = self.declarations()
+        program_node = AST.Program(node, block_node, declarations)
         return program_node
 
 
@@ -662,10 +692,17 @@ class Parser(object):
     statement_list : statement
                    | statement SEMI statement_list
 
+
     statement : compound_statement
-              | proccall_statement
-              | assignment_statement
-              | empty
+                | proccall_statement
+                | assignment_statement
+                | variable_declaration
+                | return (expr)*
+                | break
+                | continue
+                | expr
+                | empty
+
 
     assignment_statement : L_VAR ASSIGN expr
 

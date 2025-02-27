@@ -10,6 +10,7 @@ class TokenType(Enum):
     MULTIPLY = '*'
     FLOAT_DIV = '/'
     REFERNECE = '&'
+    POINTER = '*'
     SINGLE_QUOTE = '\''
     DOUBLE_QUOTE = '\"'
     DOT = '.'

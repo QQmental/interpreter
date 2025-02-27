@@ -1,9 +1,10 @@
 program Main;
 
-var a, b : integer := 16;
+var a, b : integer := 16 + *5;
 var c: bool := 0;
 var str:String;
 var d: integer := a;
+var xxxxx:integer[2][2];
 
 Enum MyEnum begin
    mb := 2,
@@ -18,60 +19,36 @@ end;
 
 var zzzz:Enum MyEnum2 := MyEnum2.mb;
 
+procedure declff(num1:integer, num2:integer)->integer;
+
 procedure fibo(num:integer)->integer;
-begin
-   IF num == 1 || num == 0
-      return 1;
-   return fibo(num-1) + fibo(num-2);
-end;
-
-
+procedure fibo2(num1:enum MyEnum2, num2:enum MyEnum2, num3:integer ,num4:integer)->integer;
 procedure func(src:enum MyEnum2)->BOOL;
-begin
-   IF src == MyEnum2.xx && a > 0
-      return True;
-   return False;
-end;
-
 procedure func2(arg: BOOL)->BOOL;
-begin
-   IF arg == True
-      return True;
-   return False;
-end;
-
-
 procedure func3(arg: integer&)->integer&;
-var A, B : integer := 550;
-var C : bool := True;
-begin
-   arg  = 999;
-   return arg;
-end;
 
-
-procedure func4(arg: enum MyEnum2&)->enum MyEnum2&;
-var A, B : integer := 550;
-
-begin
-   return arg;
-end;
 
 var arr : integer[MyEnum2.xx][3*1+MyEnum2.xx];
 var brr : integer[4];
 var e1 : enum MyEnum2 := MyEnum2.xx;
+
 begin { Main }
+
    a += 10;
    b = 1;
 
    var rrref:integer& <- a;
+
 
    WHILE(func(MyEnum2.xx))
       a -= 3;
    str = "asdsfdf";
 
 
-   b = fibo(20);
+   fibo2(MyEnum2.xx, MyEnum2.xx, 1, 1);
+
+
+   b = fibo(10);
 
    c = func(MyEnum2.mb);
    arr[0][4] := 2;
@@ -85,7 +62,10 @@ begin { Main }
    func3(arr[0][2]);
    func3(arr[0][3]);
 
-
+   brr[0] = func2(5);
+   brr[1] = func2(50);
+   brr[2] = func2(-1);
+   brr[3] = func2(0);
 
    for [var i:integer:=0] (i < 5 ; i += 1) begin
       for [var j:integer:=0] (j < 5 ; j += 1) begin
@@ -96,7 +76,58 @@ begin { Main }
    while (a > 1000)
       a -= 1;
    func3(rrref);
-
    
 
 end.  { Main }
+
+procedure declff(num1:integer, num2:integer)->integer:
+begin
+
+   return 10;
+end;
+
+procedure fibo(num:integer)->integer:
+begin
+   IF num == 1 || num == 0
+      return 1;
+   return fibo(num-1) + fibo(num-2);
+end;
+
+procedure fibo2(num1:enum MyEnum2, num2:enum MyEnum2, num3:integer, num4:integer)->integer:
+begin
+   IF num == 1 || num == 0
+      return 1;
+   return fibo(num-1) + fibo(num-2);
+end;
+
+procedure func(src:enum MyEnum2)->BOOL:
+begin
+   IF src == MyEnum2.xx && a > 0
+      return True;
+   return False;
+end;
+
+procedure func2(arg: BOOL)->BOOL:
+begin
+   IF arg == True
+      return True;
+   return False;
+end;
+
+
+procedure func3(arg: integer&)->integer&:
+begin
+   var A, B : integer := 550;
+   var C : bool := True;
+   arg  = 999;
+
+   return arg;
+end;
+
+
+procedure func4(arg: enum MyEnum2&)->enum MyEnum2&:
+var A, B : integer := 550;
+
+begin
+   return arg;
+end;

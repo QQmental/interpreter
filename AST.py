@@ -103,30 +103,51 @@ class Var(AST):
 
 class Type(AST):
     type_descriptor = None
-    def __init__(self, token:nToken.Token, dimension_size_expr_list, is_ref_type:bool):
+    def __init__(self, token:nToken.Token, dimension_size_expr_list, nested_type):
         self.token = token
         self.value = token.value
         self.dimension_size_expr_list = dimension_size_expr_list
-        if self.value == nToken.TokenType.INTEGER.name:
+        if nToken.Compare(self.token, nToken.TokenType.INTEGER):
             self.type_descriptor = nTDS.TypeDescriptor(self.value, nTDS.TypeDescriptor.TypeClass.INTEGER)
-        elif self.value == nToken.TokenType.REAL.name:
+        elif nToken.Compare(self.token, nToken.TokenType.REAL):
             self.type_descriptor = nTDS.TypeDescriptor(self.value, nTDS.TypeDescriptor.TypeClass.REAL)
-        elif self.value == nToken.TokenType.BOOL.name:
+        elif nToken.Compare(self.token, nToken.TokenType.BOOL):
             self.type_descriptor = nTDS.TypeDescriptor(self.value, nTDS.TypeDescriptor.TypeClass.BOOL)
-        elif self.value == nToken.TokenType.VOID.name:
+        elif nToken.Compare(self.token, nToken.TokenType.VOID):
             self.type_descriptor = nTDS.TypeDescriptor(self.value, nTDS.TypeDescriptor.TypeClass.VOID)            
-        elif self.value == nToken.TokenType.CHAR.name:
+        elif nToken.Compare(self.token, nToken.TokenType.CHAR):
             self.type_descriptor = nTDS.TypeDescriptor(self.value, nTDS.TypeDescriptor.TypeClass.CHAR)
-        elif self.value == nToken.TokenType.STRING.name:
-            self.type_descriptor = nTDS.TypeDescriptor(self.value, nTDS.TypeDescriptor.TypeClass.STRING)               
+        elif nToken.Compare(self.token, nToken.TokenType.STRING):
+            self.type_descriptor = nTDS.TypeDescriptor(self.value, nTDS.TypeDescriptor.TypeClass.STRING)     
+        elif nToken.Compare(self.token, nToken.TokenType.REFERNECE):
+            self.type_descriptor = nTDS.TypeDescriptor(self.value, nTDS.TypeDescriptor.TypeClass.REFERENCE)
         else:
             self.type_descriptor = nTDS.TypeDescriptor(self.value)
         
-        if is_ref_type == True:
-            ref_type_descriptor = nTDS.TypeDescriptor(self.value + "_ref", nTDS.TypeDescriptor.TypeClass.REFERENCE)
-            ref_type_descriptor.nested_type_descriptor = self.type_descriptor
+        self.nested_type = nested_type
+        
+        if self.type_descriptor.is_reference() == True:
+            ref_type_descriptor = nTDS.TypeDescriptor(self.type_string(), nTDS.TypeDescriptor.TypeClass.REFERENCE)
+            ref_type_descriptor.nested_type_descriptor = nested_type.type_descriptor
             self.type_descriptor = ref_type_descriptor
 
+    def type_string(self)->str:
+        arr_prefix = ""
+        if self.dimension_size_expr_list != []:
+            arr_prefix = "array_"
+
+        if self.nested_type == None:
+            return arr_prefix + self.value
+        else:
+            if self.type_descriptor.is_reference():
+                return arr_prefix + "ref_" + self.nested_type.type_string()
+            return arr_prefix
+
+    def symbol_string(self)->str:
+        t = self
+        while t.nested_type != None:
+            t = t.nested_type
+        return t.value
 
 class EnumDecl(ValueNode):
     def __init__(self, token:nToken.Token, member_pair_list):
@@ -147,6 +168,8 @@ class Declarations(AST):
     def __init__(self, declarations):
         self.decls = declarations # a list of AST.VARsDecl, AST.EnumDecl, AST.ProcedureDecl
 
+    def combine(self, src):
+        self.decls += src.decls
 
 class Block(AST):
     def __init__(self, declarations:Declarations, compound_statement:Compound):
@@ -207,6 +230,9 @@ class ProcedureDecl(AST):
         self.return_type_node = return_type_node
         self.block_node = block_node
 
+    def is_defined(self)->bool:
+        return self.block_node != None
+
 
 class ProcedureCall(ValueNode):
     def __init__(self, proc_name, actual_params, token):
@@ -219,8 +245,9 @@ class ProcedureCall(ValueNode):
 
 
 class Program(AST):
-    def __init__(self, node:Var, block_node):
+    def __init__(self, node:Var, block_node, declarations:Declarations):
         self.token = node.token
         self.name = node.token.value
         self.block_node = block_node
-        self.ref_procedure = None        
+        self.ref_procedure = None
+        self.declarations = declarations

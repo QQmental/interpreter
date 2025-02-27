@@ -266,11 +266,16 @@ class Interpreter(nNodeVisitor.NodeVisitor):
     def visit_ProcedureCall(self, node):
         self.log(f'ENTER: PROCEDURE {node.proc_name}')
 
+        space_size = node.ref_procedure.max_var_count
+
         ar = nCallStack.ActivationRecord(
             name = node.proc_name,
             type = nNodeVisitor.ARType.PROCEDURE,
             nesting_level = self.call_stack.top().nesting_level + 1,
-            space = node.ref_procedure.max_var_count
+            space_size = space_size,
+            stack_pointer= self.call_stack.stack_top + space_size,
+            data_space = self.call_stack.space(),
+            data_names = self.call_stack.data_names()
         )
 
         procedure = node.ref_procedure
@@ -296,16 +301,23 @@ class Interpreter(nNodeVisitor.NodeVisitor):
         self.program_name = node.name
         self.log(f'ENTER: PROGRAM {self.program_name}')
 
+        space_size = node.ref_procedure.max_var_count
+        
         ar = nCallStack.ActivationRecord(
             name = self.program_name,
             type = nNodeVisitor.ARType.PROGRAM,
             nesting_level = 1,
-            space = node.ref_procedure.max_var_count
+            space_size = space_size,
+            stack_pointer= self.call_stack.stack_top + space_size,
+            data_space = self.call_stack.space(),
+            data_names = self.call_stack.data_names()            
         )
         self.call_stack.push(ar)
 
         self.log(str(self.call_stack))
-        self.visit(node.ref_procedure.block_node)
+        self.visit(node.block_node.declarations)
+        self.visit(node.declarations)
+        self.visit(node.block_node.compound_statement)
 
         self.log(f'LEAVE: PROGRAM {self.program_name}')
         self.log(str(self.call_stack))

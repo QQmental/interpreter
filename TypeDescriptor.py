@@ -69,6 +69,9 @@ class TypeDescriptor(object):
 
         if self.type_class != src.type_class:    
             if self.is_integral() and src.is_integral():
+                if self.type_class == TypeDescriptor.TypeClass.ENUM:
+                   if src.type_class != TypeDescriptor.TypeClass.ENUM: 
+                        return False
                 return True
             return False
         

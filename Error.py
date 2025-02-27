@@ -4,6 +4,7 @@ class ErrorCode(Enum):
     UNEXPECTED_TOKEN = 'Unexpected token'
     ID_NOT_FOUND     = 'Identifier not found'
     DUPLICATE_ID     = 'Duplicate id found'
+    REDEFINE_FUNC    = 'function redefinition'
     UNDEFINED_TYPE   = 'Undefined type' 
     PRAR_COUNT_NOT_MATCHED = 'The number of parameters is not matched'
     BREAK_ERROR = 'break should be in a loop'
@@ -15,6 +16,9 @@ class ErrorCode(Enum):
     INVALID_VARIABLE_INITILIZATION = 'invalid initialization of the variable'
     UNKNOWN_ENUM_MEMBER = 'unknown access of a enum member'
     PARAMETER_TYPE_MISMATCHED = 'parameter mismatched'
+    REDECL_PROC_PARAMETER_TYPE_MISMATCHED = 'redeclared procedure parameter mismatched'
+    REDECL_PROC_RETURB_TYPE_MISMATCHED = 'redeclared procedure return type mismatched'
+    ANONYMOUS_PARAMETER = 'parameter should have name'
 
 class Error(Exception):
     def __init__(self, error_code=None, token=None, message=None):

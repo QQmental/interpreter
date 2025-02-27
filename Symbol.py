@@ -1,5 +1,6 @@
 import AST
 import TypeDescriptor as nTDS
+import Token as nToken
 
 class Symbol(object):
     is_initialized = False
@@ -10,6 +11,9 @@ class Symbol(object):
         self.type_descriptor = type_descriptor
     def type_class(self):
         return self.type_descriptor.type_class
+    def is_defined(self)->bool:
+        return True
+
 
 class TypeSymbol(Symbol):
     def __init__(self, type_descriptor:nTDS.TypeDescriptor):
@@ -34,14 +38,21 @@ class VarSymbol(Symbol):
 
 
 class CallableSymbol(Symbol):
-    def __init__(self, name, return_type_node:AST.Type, block_node:AST.Block, params=None):
+    def __init__(self, name, return_type_node:AST.Type, params=None):
         super().__init__(name, False)
         # params is a list of pair:(symbol of the parameter, assign_method)
         self.params = params if params is not None else []
         self.return_type_node = return_type_node        
-        self.block_node = block_node
+        self.block_node = None
+        self.definition_token = None
         self.max_var_count = 0
 
+    def set_definition(self, block_node:AST.Block, definition_token:nToken.Token):
+        self.block_node = block_node
+        self.definition_token = definition_token
+
+    def is_defined(self):
+        return self.block_node != None
 
     def __str__(self):
         return '<{class_name}(name={name}, parameters={params})>'.format(
