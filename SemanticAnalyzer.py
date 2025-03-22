@@ -5,8 +5,12 @@ import Token as nToken
 import Error as nError
 from LogOption import _SHOULD_LOG_SCOPE
 import DataObject as nDO
+import EvalExprInfo as nEVEXPR
 import TypeDescriptor as nTDS
+import TypeSystem as nTST
+import InitializedDataInfo as nINIT_DI
 import copy
+
 
 BUILTIN_TYPE_BINOP_TABLE = {(nToken.TokenType.PLUS, nTDS.TypeDescriptor.TypeClass.INTEGER,     nTDS.TypeDescriptor.TypeClass.INTEGER, nTDS.TypeDescriptor.TypeClass.INTEGER),
                             (nToken.TokenType.PLUS, nTDS.TypeDescriptor.TypeClass.REAL,        nTDS.TypeDescriptor.TypeClass.REAL,    nTDS.TypeDescriptor.TypeClass.REAL),
@@ -46,44 +50,19 @@ BUILTIN_TYPE_BINOP_TABLE = {(nToken.TokenType.PLUS, nTDS.TypeDescriptor.TypeClas
 
 def define_type_aassignd_method(type_descriptor:nTDS.TypeDescriptor, is_decl:bool):
     if type_descriptor.type_class == nTDS.TypeDescriptor.TypeClass.BOOL: #cast the val into a BOOl value
-        return  lambda data_obj : nDO.NaiveInitValueObject(data_obj.getter() != 0)
+        return  lambda data_space, data_obj : nDO.NaiveInitValueObject(data_obj.getter() != 0)
     elif type_descriptor.type_class == nTDS.TypeDescriptor.TypeClass.STRING:
-        return  lambda data_obj : nDO.NaiveInitValueObject(data_obj.getter())
+        return  lambda data_space, data_obj : nDO.NaiveInitValueObject(data_obj.getter())
     elif type_descriptor.is_reference():
         if is_decl == True:
-            return lambda data_obj : nDO.ReferenceObject(data_obj.ref())
+            return lambda data_space, data_obj : nDO.ReferenceObject(data_space, data_obj)
         else:
-            return lambda data_obj : data_obj
+            return lambda data_space, data_obj : data_obj
     elif type_descriptor.type_class == nTDS.TypeDescriptor.TypeClass.VOID:
-        return lambda data_obj : nDO.NaiveInitValueObject(None)
+        return lambda data_space, data_obj : nDO.NaiveInitValueObject(None)
     else:
-        return lambda data_obj : nDO.NaiveInitValueObject(data_obj.getter())
+        return lambda data_space, data_obj : nDO.NaiveInitValueObject(data_obj.getter())
 
-
-
-class EvalExprInfo(object):
-    def __init__(self, type_descriptor:nTDS.TypeDescriptor, is_rvalue:bool, constexpr_value = None):
-        self.type_descriptor = type_descriptor
-        self.m_is_rvalue = is_rvalue
-        self.constexpr_value_ = constexpr_value
-
-    def get(self):
-        return self.constexpr_value_
-    
-    def set(self, val):
-        self.constexpr_value_ = val
-    
-    def type_class(self)->nTDS.TypeDescriptor.TypeClass:
-        return self.type_descriptor.type_class
-    
-    def is_rvalue(self)->bool:
-        return self.m_is_rvalue
-    
-    def is_integral(self)->bool:
-        return self.type_descriptor.is_integral()
-    
-    def is_constexpr(self)->bool:
-        return self.constexpr_value_ != None
     
 
 def Eval_expr(lhs, rhs, bin_op, type_class = None):
@@ -93,11 +72,40 @@ def Eval_expr(lhs, rhs, bin_op, type_class = None):
         else:
             type_class = nTDS.TypeDescriptor.TypeClass.INTEGER
     tds = nTDS.TypeDescriptor("", type_class)
-    if lhs.get() != None and rhs.get() != None:
-        return EvalExprInfo(tds, True, bin_op(lhs.get(), rhs.get()))
+    if lhs.is_constexpr() == True and rhs.is_constexpr() == True:
+        return nEVEXPR.EvalExprInfo(tds, True, bin_op(lhs.get(), rhs.get()))
     else:
-        return EvalExprInfo(tds, True)        
+        return nEVEXPR.EvalExprInfo(tds, True)        
 
+
+def create_interger_TDS()->nTDS.TypeDescriptor:
+    return nTDS.TypeDescriptor(nToken.TokenType.INTEGER.name, nTDS.TypeDescriptor.TypeClass.INTEGER)
+
+def create_real_TDS()->nTDS.TypeDescriptor:
+    return nTDS.TypeDescriptor(nToken.TokenType.REAL.name, nTDS.TypeDescriptor.TypeClass.REAL)
+
+def create_bool_TDS()->nTDS.TypeDescriptor:
+    return nTDS.TypeDescriptor(nToken.TokenType.BOOL.name, nTDS.TypeDescriptor.TypeClass.BOOL)
+
+def create_char_TDS()->nTDS.TypeDescriptor:
+    return nTDS.TypeDescriptor(nToken.TokenType.CHAR.name, nTDS.TypeDescriptor.TypeClass.CHAR)
+
+def create_string_TDS()->nTDS.TypeDescriptor:
+    str_descrp = nTDS.TypeDescriptor(nToken.TokenType.STRING.name, nTDS.TypeDescriptor.TypeClass.STRING)
+    str_descrp.dimension_size_list = [1]
+    return str_descrp
+
+def create_void_TDS()->nTDS.TypeDescriptor:
+    return nTDS.TypeDescriptor(nToken.TokenType.VOID.name, nTDS.TypeDescriptor.TypeClass.VOID)
+
+gBUILTIN_TYPE_LIST = [
+                       create_interger_TDS(),
+                       create_real_TDS(),
+                       create_bool_TDS(),
+                       create_char_TDS(),                        
+                       create_string_TDS(),
+                       create_void_TDS()
+                     ]
 
 
 class ScopedSymbolTable(object):
@@ -116,21 +124,19 @@ class ScopedSymbolTable(object):
             
         self._init_builtins()
 
+    # return the symbol with initialized var_offset
+    def add_alloc_sym(self, sym:Symbol.ReferableSymbol, length:int = 1):
+        sym.var_offset = self.var_count
+        self.var_count += length
+        self.max_var_count = max(self.var_count, self.max_var_count)
+        return sym
+
     def log(self, msg):
         if _SHOULD_LOG_SCOPE:
             print(msg)
 
     def _init_builtins(self):
-        builtin_types = [
-                        nTDS.TypeDescriptor(nToken.TokenType.INTEGER.name, nTDS.TypeDescriptor.TypeClass.INTEGER),
-                        nTDS.TypeDescriptor(nToken.TokenType.REAL.name, nTDS.TypeDescriptor.TypeClass.REAL),
-                        nTDS.TypeDescriptor(nToken.TokenType.BOOL.name, nTDS.TypeDescriptor.TypeClass.BOOL),
-                        nTDS.TypeDescriptor(nToken.TokenType.CHAR.name, nTDS.TypeDescriptor.TypeClass.CHAR),                        
-                        nTDS.TypeDescriptor(nToken.TokenType.STRING.name, nTDS.TypeDescriptor.TypeClass.STRING),
-                        nTDS.TypeDescriptor(nToken.TokenType.VOID.name, nTDS.TypeDescriptor.TypeClass.VOID)
-                       ]
-    
-        for builtin_type in builtin_types:
+        for builtin_type in gBUILTIN_TYPE_LIST:
             self.insert(Symbol.TypeSymbol(builtin_type))
         return
 
@@ -185,6 +191,7 @@ class ScopedSymbolTable(object):
 class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
     def __init__(self):
         self.current_scope = None
+        self.allocated_sym_list = nINIT_DI.InitializedDataInfoTable()
 
     def log(self, msg):
         if _SHOULD_LOG_SCOPE:
@@ -196,6 +203,12 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
             token=token,
             message=f'{error_code.value} -> {token}',
         )
+
+    def get_global_scope(self)->ScopedSymbolTable:
+        scp = self.current_scope
+        while scp.parent_scope != None:
+            scp = scp.parent_scope
+        return scp
 
     def visit_Subscript(self, node):
         if (node.level == 1):
@@ -222,7 +235,7 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
                 tmp_type_descriptor.dimension_size_list = None
 
         node.type_descriptor = eval_expr.type_descriptor
-        return EvalExprInfo(node.type_descriptor, False)
+        return nEVEXPR.EvalExprInfo(node.type_descriptor, False)
 
 
     def visit_BinOp(self, node):
@@ -266,28 +279,28 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
         return value
 
     def visit_Num(self, node):
-        return EvalExprInfo(node.type_descriptor, True, node.value)
+        return nEVEXPR.EvalExprInfo(node.type_descriptor, True, node.value)
 
     def visit_BoolVal(self, node):
-        return EvalExprInfo(node.type_descriptor, True, node.value)
+        return nEVEXPR.EvalExprInfo(create_bool_TDS(), True, node.value)
     
     def visit_StringVal(self, node):
-        return EvalExprInfo(node.type_descriptor, True, node.value)
+        return nEVEXPR.EvalExprInfo(create_string_TDS(), True, node.value)
 
     def visit_CharVal(self, node):
-        return EvalExprInfo(node.type_descriptor, True, node.value)
+        return nEVEXPR.EvalExprInfo(create_char_TDS(), True, node.value)
 
 
     def visit_UnaryOp(self, node):
         val = self.visit(node.expr)
         if node.op.type == nToken.TokenType.PLUS.name:     
-            if val.get() != None:
+            if val.is_constexpr() == True:
                 val.set(val.get() * 1)
         elif node.op.type == nToken.TokenType.MINUS.name:
-            if val.get() != None:
+            if val.is_constexpr() == True:
                 val.set(val.get() * -1)
         elif node.op.type == nToken.TokenType.NOT.name:
-            if val.get() != None:
+            if val.is_constexpr() == True:
                 val.set(not val.get())
                 val.type_class = nTDS.TypeDescriptor.TypeClass.BOOL
 
@@ -303,27 +316,33 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
             self.error(error_code=nError.ErrorCode.UNEXPECTED_TOKEN, token=node.token)
 
         if node.op.value == ':=' or node.op.value == '=':
-            self.visit(node.right)
-            expr_info = self.visit(node.left)
+            src_expr_info = self.visit(node.right)
+            dst_expr_info = self.visit(node.left)
         elif node.op.value == '+=':
-            self.visit(node.right)
-            expr_info = self.visit(node.left)
+            src_expr_info = self.visit(node.right)
+            dst_expr_info = self.visit(node.left)
         elif node.op.value == '-=':
-            self.visit(node.right)
-            expr_info = self.visit(node.left)
+            src_expr_info = self.visit(node.right)
+            dst_expr_info = self.visit(node.left)
         elif node.op.value == '*=':
-            self.visit(node.right)
-            expr_info = self.visit(node.left)
+            src_expr_info = self.visit(node.right)
+            dst_expr_info = self.visit(node.left)
         elif node.op.value == '/=':
-            self.visit(node.right)
-            expr_info = self.visit(node.left)
+            src_expr_info = self.visit(node.right)
+            dst_expr_info = self.visit(node.left)
         else:
             self.error()
+        
         if self.compare_type(node.right, nTDS.TypeDescriptor.TypeClass.VOID):
             self.error(error_code=nError.ErrorCode.ASSIGNED_WITH_VOID, token=node.right.token)
-        
-        node.left.assign_method = define_type_aassignd_method(expr_info.type_descriptor, False)
 
+        if nTST.is_assigned_value_type_compatible(dst_expr_info, src_expr_info) == False:
+            self.error(error_code=nError.ErrorCode.ASSIGNMENT_INCOMPATIBLE, 
+                        token=str(node.left.token) + " " + str(node.right.token))
+
+        node.left.assign_method = define_type_aassignd_method(src_expr_info.type_descriptor, False)
+
+    
     def visit_Var(self, node):
         var_name = node.value
         var_symbol = self.current_scope.lookup(var_name)
@@ -342,9 +361,21 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
         else:
             node.access_method = lambda call_stack : call_stack.bot()[node.var_offset]
 
-        node.type_descriptor = var_symbol.type_descriptor
-        return EvalExprInfo(node.type_descriptor, False)
+        node.type_descriptor = var_symbol.type_descriptor()
+
+        if var_symbol.type_descriptor().is_reference() == True:
+            expr_info = nEVEXPR.EvalExprInfo(node.type_descriptor, False)
+        else:
+            tds = nTDS.TypeDescriptor("", nTDS.TypeDescriptor.TypeClass.REFERENCE)
+            tds.nested_type_descriptor = node.type_descriptor
+            expr_info = nEVEXPR.EvalExprInfo(tds, False)
         
+        if var_symbol.is_on_stack_symbol == False:
+            expr_info.mark_link_needed()
+        
+        return expr_info
+
+
     def visit_MemberAccess(self, node):
         var_name = node.left.token.value
         var_symbol = self.current_scope.lookup(var_name)
@@ -364,13 +395,14 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
             node.type_descriptor = var_symbol.type_descriptor
 
             tds = nTDS.TypeDescriptor(var_symbol.name, nTDS.TypeDescriptor.TypeClass.ENUM)
-            return EvalExprInfo(tds, True, val)
+            node.type_descriptor = tds
+            return nEVEXPR.EvalExprInfo(tds, True, val)
         
-        return EvalExprInfo()
+        return nEVEXPR.EvalExprInfo()
 
     def visit_NoOp(self, node):
         tds = nTDS.TypeDescriptor(nToken.TokenType.VOID.name, nTDS.TypeDescriptor.TypeClass.VOID)
-        return EvalExprInfo(tds, True)
+        return nEVEXPR.EvalExprInfo(tds, True)
 
     def visit_EnumDecl(self, node):
         member_set = {}
@@ -389,28 +421,58 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
         for decl in node.decls:
             self.visit(decl)
 
-    def init_type_descp(self, type_descriptor:nTDS.TypeDescriptor):
-        if type_descriptor.nested_type_descriptor != None:
-            self.init_type_descp(type_descriptor.nested_type_descriptor)
+    def init_type_descp(self, node):
+        if nToken.Compare(node.token, nToken.TokenType.INTEGER):
+            node.type_descriptor = create_interger_TDS()
+        elif nToken.Compare(node.token, nToken.TokenType.REAL):
+            node.type_descriptor = create_real_TDS()
+        elif nToken.Compare(node.token, nToken.TokenType.BOOL):
+            node.type_descriptor = create_bool_TDS()
+        elif nToken.Compare(node.token, nToken.TokenType.VOID):
+            node.type_descriptor = create_void_TDS()
+        elif nToken.Compare(node.token, nToken.TokenType.CHAR):
+            node.type_descriptor = create_char_TDS()
+        elif nToken.Compare(node.token, nToken.TokenType.STRING):
+            node.type_descriptor = create_string_TDS()    
+        elif nToken.Compare(node.token, nToken.TokenType.REFERNECE):
+            node.type_descriptor = nTDS.TypeDescriptor("", nTDS.TypeDescriptor.TypeClass.REFERENCE)
+        elif node.is_callable() == True:
+            node.type_descriptor = nTDS.TypeDescriptor("", nTDS.TypeDescriptor.TypeClass.CallAble)
+            self.visit(node.return_type_node())
+            node.type_descriptor.return_type_descriptor = node.return_type_node().type_descriptor
+            lst = []
+            for para in node.para_node():
+                self.visit(para.type_node)
+                lst.append(para.type_node.type_descriptor)
+            node.type_descriptor.param_type_list = lst
+        else:
+            node.type_descriptor = nTDS.TypeDescriptor(node.value)
+        
+        if node.nested_type != None:
+            self.init_type_descp(node.nested_type)
+            node.type_descriptor.nested_type_descriptor = node.nested_type.type_descriptor 
+
+        if node.type_descriptor.is_reference() == True:
+            ref_type_descriptor = nTDS.TypeDescriptor(node.type_string(), nTDS.TypeDescriptor.TypeClass.REFERENCE)
+            ref_type_descriptor.nested_type_descriptor = node.nested_type.type_descriptor
+            self.type_descriptor = ref_type_descriptor
+        
+        return node
+
 
     def visit_Type(self, node):
+        node = self.init_type_descp(node)
         cur_type_descriptor = node.type_descriptor
         while cur_type_descriptor.nested_type_descriptor != None:
             cur_type_descriptor = cur_type_descriptor.nested_type_descriptor
 
-        var_name = cur_type_descriptor.name
-        type_symbol = self.current_scope.lookup(var_name)
-        if type_symbol is None:
-            self.error(error_code = nError.ErrorCode.ID_NOT_FOUND, token=node.token)
-        
-        cur_type_descriptor.type_class = type_symbol.type_descriptor.type_class
-        cur_type_descriptor.nested_type_descriptor = copy.deepcopy(type_symbol.type_descriptor.nested_type_descriptor)
-
-        if cur_type_descriptor != node.type_descriptor:
-            cur_type_descriptor.dimension = type_symbol.type_descriptor.dimension
-            cur_type_descriptor.dimension_size_list = copy.deepcopy(type_symbol.type_descriptor.dimension_size_list)
-            cur_type_descriptor.array_len = type_symbol.type_descriptor.array_len
-        
+        if cur_type_descriptor.has_symbol():
+            type_name = cur_type_descriptor.name
+            type_symbol = self.current_scope.lookup(type_name)
+            if type_symbol is None:
+                self.error(error_code = nError.ErrorCode.ID_NOT_FOUND, token=node.token)
+            
+            cur_type_descriptor.type_class = type_symbol.type_descriptor().type_class
 
         # array of node.type_descriptor.type_class
         if len(node.dimension_size_expr_list) > 0:
@@ -434,9 +496,12 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
             cur_type_descriptor.dimension_size_list = xlist
             cur_type_descriptor.array_len = product
             
-        elif cur_type_descriptor.type_class == nTDS.TypeDescriptor.TypeClass.STRING:
-            cur_type_descriptor.dimension_size_list = [1]
-        
+
+    def visit_CallableProtocal(self, node):
+        for param in node.para_node():
+            self.visit(param.type_node)
+        self.visit(node.return_type_node())
+        pass
 
     def visit_Control_flow_statement(self, node):
         scope = self.current_scope
@@ -454,21 +519,27 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
                 scope = scope.parent_scope
             proc_symobl = scope.lookup(scope.scope_name)
 
-            if proc_symobl.return_type_node.type_descriptor.is_type_implicit_castable(return_val_expr_info.type_descriptor) == False:
+            if nTST.is_type_implicit_castable(proc_symobl.return_type_descriptor() , return_val_expr_info.type_descriptor) == False:
                 self.error(error_code = nError.ErrorCode.UNMATCHED_RETURN_VALUE, token=node.token)
 
-            node.return_val.assign_method = define_type_aassignd_method(proc_symobl.return_type_node.type_descriptor, True)
+            node.return_val.assign_method = define_type_aassignd_method(proc_symobl.return_type_descriptor(), True)
             
 
     def visit_VARsDecl(self, node):
         self.visit(node.type_node)
-        type_symbol = self.current_scope.lookup(node.type_node.symbol_string())
+        if node.type_node.type_descriptor.has_symbol():
+            type_symbol = self.current_scope.lookup(node.type_node.symbol_string())
+            if type_symbol.type_class() == nTDS.TypeDescriptor.TypeClass.VOID:
+                self.error(
+                    error_code=nError.ErrorCode.INVALID_TYPE_OF_OBJ_DECLARATION,
+                    token=node.type_node.token         
+                )
 
-        if type_symbol.type_class() == nTDS.TypeDescriptor.TypeClass.VOID:
-            self.error(
-                error_code=nError.ErrorCode.INVALID_TYPE_OF_OBJ_DECLARATION,
-                token=node.type_node.token         
-            )
+        expr_info = nEVEXPR.EvalExprInfo(node.type_node.type_descriptor, False)
+
+        if node.initilized_value != None:
+            expr_info = self.visit(node.initilized_value)
+        
         for var in node.var_list:
             var_name = var.value
             if self.current_scope.lookup(var_name, current_scope_only = True) != None:
@@ -476,17 +547,28 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
                     error_code=nError.ErrorCode.DUPLICATE_ID,
                     token=node.var_node.token,
                 )
+                
+            if node.type_node.type_descriptor.is_reference() and \
+                node.type_node.nested_type.type_descriptor.type_class == nTDS.TypeDescriptor.TypeClass.CallAble:
+                decl_symbol = alloc_callable_symbol(self.current_scope , var_name, self.current_scope.scope_level != 1, node.type_node.type_descriptor)
+            else:        
+                decl_symbol = alloc_var_symbol(self.current_scope , var_name, self.current_scope.scope_level != 1, node.type_node)
             
-            var_symbol = create_var_symbol(self.current_scope , var_name, self.current_scope.scope_level != 1, node.type_node)
-            self.current_scope.insert(var_symbol)
-
+            
+            self.current_scope.insert(decl_symbol)
             self.visit(var)
             var.assign_method = define_type_aassignd_method(node.type_node.type_descriptor, True)
         
-        if node.initilized_value != None:
-            expr_info = self.visit(node.initilized_value)
-        
-        if var_symbol.type_descriptor.type_class == nTDS.TypeDescriptor.TypeClass.REFERENCE:
+            if decl_symbol.is_on_stack_symbol == False and node.initilized_value != None:
+                if expr_info.is_constexpr() == False and expr_info.is_link_needed() == False:
+                    self.error(error_code=nError.ErrorCode.INVALID_VARIABLE_INITILIZATION, 
+                               token = str(node.initilized_value.token) + "\nstatic allocated variable should not be initialized by a run time result")
+
+            if self.current_scope.scope_level == ScopedSymbolTable.global_scope_level:
+                info = nINIT_DI.InitializedDataInfo(var_name, decl_symbol.var_offset, expr_info, node.initilized_value, var.assign_method)
+                self.allocated_sym_list.append(info)
+
+        if decl_symbol.type_descriptor().type_class == nTDS.TypeDescriptor.TypeClass.REFERENCE:
             if node.assignment_symbol == "":
                 self.error(error_code=nError.ErrorCode.INVALID_VARIABLE_INITILIZATION, 
                            token=str(node.type_node.token) + "reference variable should be assigned when it's declared")
@@ -555,20 +637,11 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
 
     def visit_ProcedureDecl(self, node):
         proc_name = node.proc_name
+
         targ_proc_symbol = self.current_scope.lookup(proc_name)
 
+        self.visit(node.protocal)
 
-        self.visit(node.return_type_node)
-        proc_symbol = Symbol.CallableSymbol(proc_name,
-                                            node.return_type_node)
-        
-        proc_symbol.set_definition(node.block_node, node.token)
-
-        if targ_proc_symbol != None and targ_proc_symbol.is_defined() == True and proc_symbol.is_defined() == True:
-            err_msg = "{token}, first defined at {prev_token}".format(token = node.token, prev_token = targ_proc_symbol.definition_token)
-            self.error(  nError.ErrorCode.REDEFINE_FUNC, err_msg)  
-
-        self.log('ENTER scope: %s' %  proc_name)
         # Scope for parameters and local variables
         procedure_scope = ScopedSymbolTable(
             scope_name = proc_name,
@@ -577,67 +650,106 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
             parent_scope = self.current_scope
         )
 
-        # Insert parameters into the procedure scope
-        for param in node.para_node:
-            self.visit(param.type_node)
-            
-            if nToken.Compare(param.var_node.token, nToken.TokenType.COLON):
-                if proc_symbol.is_defined() == True:
-                    self.error(error_code=nError.ErrorCode.ANONYMOUS_PARAMETER, token=param.var_node.token)
-                else:
-                    continue
-            var_symbol = create_var_symbol(procedure_scope, param.var_node.value, True, param.type_node)
-            var_symbol.is_initialized = True
-            self.current_scope.insert(var_symbol)
-            self.visit(param.var_node)
-            
-            proc_symbol.params.append((var_symbol, define_type_aassignd_method(var_symbol.type_descriptor, True)))
+        if targ_proc_symbol != None and targ_proc_symbol.is_defined() == True and node.block_node != None:
+            err_msg = "{token}, first defined at {prev_token}".format(token = node.token, prev_token = targ_proc_symbol.definition_token)
+            self.error(  nError.ErrorCode.REDEFINE_FUNC, err_msg)  
+
+        self.log('ENTER scope: %s' %  proc_name)
 
 
-        if targ_proc_symbol == None:
-            self.current_scope.insert(proc_symbol)
+        tds = nTDS.TypeDescriptor("", nTDS.TypeDescriptor.TypeClass.CallAble)
+        tds.return_type_descriptor = node.return_type_node().type_descriptor
+        para_tlst = []
+        for para in node.para_node():
+            para_tlst.append(para.type_node.type_descriptor)
+        tds.param_type_list = para_tlst
+
+        proc_symbol = Symbol.ProcSymbol(proc_name,
+                                        self.current_scope.scope_level != ScopedSymbolTable.global_scope_level,
+                                        tds)
+
+        proc_symbol.set_definition(node.block_node, node.token)
+
+
+        def walk_proc_decl():
+            param_type_list = []
+            params = []
+            assign_methods = []
+            # Insert parameters into the procedure scope
+            for param in node.para_node():
+                self.visit(param.type_node)
+                
+                if nToken.Compare(param.var_node.token, nToken.TokenType.COLON):
+                    if proc_symbol.is_defined() == True:
+                        self.error(error_code=nError.ErrorCode.ANONYMOUS_PARAMETER, token=param.var_node.token)
+                    else:
+                        continue
+                var_symbol = alloc_var_symbol(self.current_scope, param.var_node.value, True, param.type_node)
+                var_symbol.is_initialized = True
+                self.current_scope.insert(var_symbol)
+                self.visit(param.var_node)
+                
+                param_type_list.append(var_symbol.type_descriptor)
+                params.append(var_symbol)
+                assign_methods.append(define_type_aassignd_method(var_symbol.type_descriptor(), True))
+   
+            proc_symbol.params = params
+            proc_symbol.assign_methods = assign_methods
+
+            
+            if targ_proc_symbol.is_defined():
+                self.visit(targ_proc_symbol.block_node)
+                targ_proc_symbol.max_var_count = self.current_scope.max_var_count
+
+        
+        if targ_proc_symbol == None:          
             targ_proc_symbol = proc_symbol
+            scp = self.get_global_scope()
+            scp.insert(proc_symbol)
+            targ_proc_symbol = alloc_proc_symbol(scp, proc_name, False, tds)
+            #targ_proc_symbol = scp.add_alloc_sym(targ_proc_symbol)
+            expr_info = nEVEXPR.EvalExprInfo(nTDS.TypeDescriptor(nToken.TokenType.PROCEDURE.name, nTDS.TypeDescriptor.TypeClass.CallAble), False, targ_proc_symbol)
+            info = nINIT_DI.InitializedDataInfo(proc_name, targ_proc_symbol.var_offset, expr_info, None)
+            self.allocated_sym_list.append(info)
+            self.enter_new_socpe(procedure_scope, lambda : walk_proc_decl())
         else:
             error_callback = lambda error_code : self.error(error_code=error_code, token=node.token)
 
-            callable_type_compare(proc_symbol, targ_proc_symbol, error_callback)
-
-            if targ_proc_symbol.is_defined() and proc_symbol.is_defined():
-                self.error(error_code=nError.ErrorCode.DUPLICATE_ID, token=node.token)
-            
-            #targ_proc_symbol.block_node = proc_symbol.block_node
-
             targ_proc_symbol.set_definition(proc_symbol.block_node, proc_symbol.definition_token)
 
-        if targ_proc_symbol.is_defined():
-            self.enter_new_socpe(procedure_scope, lambda : self.visit(targ_proc_symbol.block_node))     
-            targ_proc_symbol.max_var_count = procedure_scope.max_var_count
+            self.enter_new_socpe(procedure_scope, lambda : walk_proc_decl())
+
+            callable_type_compare(proc_symbol, targ_proc_symbol, error_callback)
 
 
-    def visit_ProcedureCall(self, node):
-        proc_symbol = self.current_scope.lookup(node.proc_name)
+    def visit_CallInvoked(self, node):
+        access_symbol = self.current_scope.lookup(node.access_name)
         
-        if proc_symbol == None:
+        if access_symbol == None:
             self.error(error_code=nError.ErrorCode.ID_NOT_FOUND, token=node.token)
-        if len(proc_symbol.params) != len(node.actual_params):
+        if len(access_symbol.params) != len(node.actual_params):
             self.error(error_code=nError.ErrorCode.PRAR_COUNT_NOT_MATCHED, token=node.token)
         
-        node.ref_procedure = proc_symbol
-        node.type_descriptor = proc_symbol.return_type_node.type_descriptor
+        self.visit(node.callee_src)
+
+        node.var_offset = access_symbol.var_offset
+        node.type_descriptor = access_symbol.return_type_descriptor()
 
         for idx, param_node in enumerate(node.actual_params):
-            actual_para_expr_info = self.visit(param_node)
-            para_var_symbol = proc_symbol.params[idx][0]
-            if actual_para_expr_info.is_rvalue() == False and actual_para_expr_info.type_descriptor.is_reference() == False:
-                type_descriptor = nTDS.TypeDescriptor(actual_para_expr_info.type_descriptor.name + "_ref", nTDS.TypeDescriptor.TypeClass.REFERENCE)
-                type_descriptor.nested_type_descriptor = actual_para_expr_info.type_descriptor
+            input_para_expr_info = self.visit(param_node)
+            para_var_symbol= access_symbol.params[idx]
+            if input_para_expr_info.is_rvalue() == False and input_para_expr_info.type_descriptor.is_reference() == False:
+                type_descriptor = nTDS.TypeDescriptor(input_para_expr_info.type_descriptor.name + "_ref", nTDS.TypeDescriptor.TypeClass.REFERENCE)
+                type_descriptor.nested_type_descriptor = input_para_expr_info.type_descriptor
                 param_node.type_descriptor = type_descriptor
-                actual_para_expr_info = EvalExprInfo(param_node.type_descriptor, False, actual_para_expr_info.get())
-            if para_var_symbol.type_descriptor.is_type_implicit_castable(actual_para_expr_info.type_descriptor) == False:
+                input_para_expr_info = nEVEXPR.EvalExprInfo(param_node.type_descriptor, False, input_para_expr_info.get())
+
+                
+            if nTST.is_type_implicit_castable(para_var_symbol.type_descriptor(), input_para_expr_info.type_descriptor) == False:
                 self.error(error_code=nError.ErrorCode.PARAMETER_TYPE_MISMATCHED, 
                            token=node.token)
 
-        return EvalExprInfo(proc_symbol.return_type_node.type_descriptor, not proc_symbol.return_type_node.type_descriptor.is_reference())
+        return nEVEXPR.EvalExprInfo(node.type_descriptor, not node.type_descriptor.is_reference())
 
     def visit_Block(self, node):
         self.visit(node.declarations)
@@ -655,24 +767,32 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
         token = nToken.Create_reserved_keyword_token(nToken.TokenType.INTEGER.value)
         token.column = -1
         token.lineno = -1
-        always_return_int = AST.Type(token, [], None)
+        always_return_int = AST.Type(token)
 
         prog_name = node.name
 
-        prog_symbol = Symbol.CallableSymbol(prog_name,
-                                            always_return_int)
+        prog_symbol = Symbol.ProcSymbol(prog_name,
+                                        global_scope.scope_level != ScopedSymbolTable.global_scope_level,
+                                        always_return_int.type_descriptor)
         
         prog_symbol.set_definition(node.block_node, node.token)
-        node.ref_procedure = prog_symbol
+
+        prog_symbol =  alloc_proc_symbol(global_scope, prog_name, False, always_return_int)
+        node.var_offset = prog_symbol.var_offset
+
+        expr_info = nEVEXPR.EvalExprInfo(nTDS.TypeDescriptor(nToken.TokenType.PROGRAM.name, nTDS.TypeDescriptor.TypeClass.CallAble), False, prog_symbol)
+        info = nINIT_DI.InitializedDataInfo(prog_name, prog_symbol.var_offset, expr_info, prog_symbol, None)
+        self.allocated_sym_list.append(info)
 
         def visit_method():
             self.visit(always_return_int)
             self.current_scope.insert(prog_symbol)
-            self.visit(node.block_node)
+            self.visit(node.block_node.declarations)
             self.visit(node.declarations)
+            self.visit(node.block_node.compound_statement)
         
         max_var_count = self.enter_new_socpe(global_scope, lambda : visit_method())
-        prog_symbol.max_var_count = max_var_count
+        self.allocated_sym_list.max_var_count = max_var_count
         
     
     def compare_type(self, node, type_class:nTDS.TypeDescriptor.TypeClass):
@@ -708,18 +828,34 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
         self.current_scope = self.current_scope.parent_scope
         return max_var_count
 
-def create_var_symbol(scope:ScopedSymbolTable, name:str, is_on_stack_symbol: bool, type_node: AST.Type):
-    offset = scope.var_count
-    scope.var_count += 1
-    scope.max_var_count = max(scope.var_count, scope.max_var_count)
-    return Symbol.VarSymbol(name, is_on_stack_symbol, type_node, offset)
 
-def callable_type_compare(lhs:Symbol.CallableSymbol, rhs:Symbol.CallableSymbol, error_callback):
-    for idx, param in enumerate(lhs.params):
-        if param[0].type_descriptor.is_type_equal(rhs.params[idx][0].type_descriptor) == False:
+def alloc_var_symbol(scope:ScopedSymbolTable, name:str, is_on_stack_symbol: bool, type_node: AST.Type):
+    sym = Symbol.VarSymbol(name, is_on_stack_symbol, type_node)
+    if type_node.type_descriptor.array_len > 0:
+        sym = scope.add_alloc_sym(sym, type_node.type_descriptor.array_len)
+    else:
+        sym = scope.add_alloc_sym(sym)
+
+    return sym
+
+def alloc_proc_symbol(scope:ScopedSymbolTable, name:str, is_on_stack_symbol: bool, type_descriptor:nTDS.TypeDescriptor):
+    sym = Symbol.ProcSymbol(name, is_on_stack_symbol, type_descriptor)
+    sym = scope.add_alloc_sym(sym)
+    return sym
+
+def alloc_callable_symbol(scope:ScopedSymbolTable, name:str, is_on_stack_symbol: bool, type_descriptor:nTDS.TypeDescriptor):
+    sym = Symbol.CallableSymbol(name, is_on_stack_symbol, type_descriptor)
+    sym = scope.add_alloc_sym(sym)
+    return sym
+
+def callable_type_compare(lhs:Symbol.ProcSymbol, rhs:Symbol.ProcSymbol, error_callback):
+    for idx, param in enumerate(lhs.type_descriptor().param_type_list):
+        if param.is_type_equal(rhs.type_descriptor().param_type_list[idx]) == False:
             error_callback(nError.ErrorCode.REDECL_PROC_PARAMETER_TYPE_MISMATCHED)
             return False
-        if lhs.return_type_node.type_descriptor.is_type_equal(rhs.return_type_node.type_descriptor) == False:
-            error_callback(nError.ErrorCode.REDECL_PROC_RETURB_TYPE_MISMATCHED)
-            return False
+    
+    if lhs.type_descriptor().return_type_descriptor.is_type_equal(rhs.type_descriptor().return_type_descriptor) == False:
+        error_callback(nError.ErrorCode.REDECL_PROC_RETURB_TYPE_MISMATCHED)
+        return False
+    
     return True

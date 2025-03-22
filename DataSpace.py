@@ -12,8 +12,9 @@ class ActivationRecord:
         self.data_names = data_names
 
 
-    def store(self, offset, value, name = ""):
-        self.data_space[self.offset_cal(offset)] = value
+    def store(self, offset, data_obj, name = ""):
+        data_obj.address = self.offset_cal(offset)
+        self.data_space[self.offset_cal(offset)] = data_obj
         self.data_names[self.offset_cal(offset)] = name
 
     def load(self, offset):
@@ -43,7 +44,7 @@ class ActivationRecord:
     def __repr__(self):
         return self.__str__()
 
-class CallStack:
+class DataSpace:
     def __init__(self):
         self._records = [nDO.NaiveInitValueObject(None)]*256
         self._records_name = [""] * 256
@@ -56,6 +57,12 @@ class CallStack:
     def data_names(self):
         return self._records_name
 
+    def load(self, address:int):
+        return self.space()[address]
+    
+    def store(self, data_obj, address:int):
+        self.space()[address] = data_obj
+        
     def push(self, ar):
         self.environment_stack.append(ar)
         self.stack_top += ar.space_size

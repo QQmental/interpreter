@@ -12,15 +12,22 @@ class TypeDescriptor(object):
         REFERENCE = 8
         STRUCT = 9
         ENUM = 10
+        CallAble = 11
+        ARRAY = 12
     
     dimension = 0
     dimension_size_list = None
     array_len = 0
     nested_type_descriptor = None
+    param_type_list = []
+    return_type_descriptor = None
 
     def __init__(self, name:str, type_class:TypeClass = None):
         self.name = name
         self.type_class = type_class
+
+    def has_symbol(self)->bool:
+        return self.name != ""
 
     def is_primitive(self):
         return self.type_class.value < self.TypeClass.m_PRIMITIVE.value
@@ -30,11 +37,10 @@ class TypeDescriptor(object):
     
     def is_integral(self):
         if self.is_reference():
-            return self.nested_type_descriptor.is_inteegral()
+            return self.nested_type_descriptor.is_integral()
         return self.type_class.value  < self.TypeClass.m_INTEGER.value or \
                 self.type_class.value == self.TypeClass.ENUM.value 
     
-
     def is_type_equal(self, src):
         if self.dimension != src.dimension:
             return False
@@ -47,40 +53,4 @@ class TypeDescriptor(object):
     
         return self.type_class == src.type_class and self.name == src.name
 
-    # implicitly cast src to self
-    def is_type_implicit_castable(self, src):
-        if self.dimension != src.dimension:
-            return False
         
-        if self.dimension_size_list != src.dimension_size_list:
-            return False
-        
-        if self.type_class != TypeDescriptor.TypeClass.REFERENCE and src.type_class == TypeDescriptor.TypeClass.REFERENCE:
-            return self.is_type_implicit_castable(src.nested_type_descriptor)
-        
-        if self.type_class == TypeDescriptor.TypeClass.REFERENCE and src.type_class == TypeDescriptor.TypeClass.REFERENCE:
-            return self.nested_type_descriptor.is_type_equal(src.nested_type_descriptor)
-
-        if self.type_class == TypeDescriptor.TypeClass.VOID and src.type_class != TypeDescriptor.TypeClass.VOID:
-            return False
-        
-        if self.type_class != TypeDescriptor.TypeClass.VOID and src.type_class == TypeDescriptor.TypeClass.VOID:
-            return False        
-
-        if self.type_class != src.type_class:    
-            if self.is_integral() and src.is_integral():
-                if self.type_class == TypeDescriptor.TypeClass.ENUM:
-                   if src.type_class != TypeDescriptor.TypeClass.ENUM: 
-                        return False
-                return True
-            return False
-        
-        if self.is_primitive() and src.is_primitive():
-            return True
-        
-        if self.name != src.name:
-            return False
-        
-        return True
-        
-    

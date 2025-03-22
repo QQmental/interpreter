@@ -3,6 +3,7 @@ class DataObject(object):
         self.setter_fn = setter
         self.getter_fn = getter
         self.value = value
+        self.address = -1
 
     def setter(self, val):
         self.setter_fn(self, val)
@@ -10,35 +11,41 @@ class DataObject(object):
     def getter(self):
         return self.getter_fn(self)
 
-    def ref(self):
-        pass
+    def set_addr(self, addr):
+        self.address = addr
+
+    def value_ref(self):
+        return self.address
 
     def __str__(self):
         return str(self.value)
     
 class ReferenceObject(DataObject):
     # value of a ReferenceObject is the referenced DataObject
-    def __init__(self, val_obj:DataObject):
-        self.value = val_obj.ref()
+    # data_space is a list of DataObject
+    def __init__(self, data_space, data_obj:DataObject):
+        self.data_space = data_space
+        self.value = data_obj.value_ref()
 
     def setter(self, val):
-        self.value.setter(val)
+        data_obj = self.data_space[self.value]
+        data_obj.setter(val)
     
     def getter(self):
-        return self.value.getter()
+        data_obj = self.data_space[self.value]
+        return data_obj.getter()
 
-    def ref(self):
+    def value_ref(self):
         return self.value
+    
 
+    def __str__(self):
+        return "ref addr: " + str(self.value)
 
 class ValueObject(DataObject):
     def __init__(self, setter, getter, value = None):
-        self.setter_fn = setter
-        self.getter_fn = getter
-        self.value = value
+        super().__init__(setter, getter, value)
     
-    def ref(self):
-        return self
     
 def NaiveInitValueObject(value):
     def just_set(dst_obj, src_obj):

@@ -19,6 +19,7 @@ class ErrorCode(Enum):
     REDECL_PROC_PARAMETER_TYPE_MISMATCHED = 'redeclared procedure parameter mismatched'
     REDECL_PROC_RETURB_TYPE_MISMATCHED = 'redeclared procedure return type mismatched'
     ANONYMOUS_PARAMETER = 'parameter should have name'
+    ASSIGNMENT_INCOMPATIBLE = 'assigned with incompatible value'
 
 class Error(Exception):
     def __init__(self, error_code=None, token=None, message=None):

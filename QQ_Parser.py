@@ -113,7 +113,7 @@ class Parser(object):
             self.eat(TokenType.RPAREN)
             return self.factor_0(node)
         elif self.lexer.current_char == TokenType.LPAREN.value:
-            node = self.proccall_statement()
+            node = self.call_invoked_statement()
             node = self.factor_0(node)
             token = self.current_token
             if nToken.Compare(token, nToken.TokenType.DOT):
@@ -260,7 +260,7 @@ class Parser(object):
     def statement(self):
         """
         statement : compound_statement
-                  | proccall_statement
+                  | call_invoked_statement
                   | assignment_statement
                   | variable_declaration
                   | return (expr)*
@@ -274,7 +274,7 @@ class Parser(object):
             node = self.compound_statement()
         elif nToken.Compare(token, TokenType.IDENTIFIER) \
              and self.lexer.current_char == TokenType.LPAREN.value:
-            left = self.proccall_statement()
+            left = self.call_invoked_statement()
             if nToken.Compare(self.current_token, nToken.TokenType.ASSIGN):
                 op = self.current_token     
                 node = left
@@ -419,6 +419,10 @@ class Parser(object):
         return root
 
     def type_spec(self)->AST.Type:
+        ret = self.callable_type_spec()
+        if ret != None:
+            return ret
+
         token = self.current_token
         type_name = self.current_token.value.upper()
         is_builtin = False
@@ -438,23 +442,60 @@ class Parser(object):
             else:
                 self.eat(TokenType.IDENTIFIER)
 
-        dim_size_expr_list = []
-        cur_type = AST.Type(token, [], None)
+        cur_type = AST.Type(token)
+        cur_type = self.decoreated_type_sepc(cur_type)
+
+        return cur_type
+    
+
+    def decoreated_type_sepc(self, decorated_type)->AST.Type:
+        cur_type = decorated_type
 
         while True:
             if nToken.Compare(self.current_token, nToken.TokenType.REFERNECE):
                 current_token = self.current_token
                 self.eat(nToken.TokenType.REFERNECE)
                 nested_type_node = cur_type
-                cur_type = AST.Type(current_token, [], nested_type_node)
+                cur_type = AST.Type(current_token)
+                cur_type.nested_type = nested_type_node
             elif nToken.Compare(self.current_token, nToken.TokenType.LEFT_BRACKET):
                 dim_size_expr_list = self.array_range_spec()
-                cur_type = AST.Type(cur_type.token, dim_size_expr_list, cur_type.nested_type)
+                cur_type = AST.Type(cur_type.token)
+                cur_type.dimension_size_expr_list = dim_size_expr_list
             else:
                 break
-
+        
         return cur_type
-    
+
+        
+    def callable_type_spec(self):
+        ret = None
+        paran_token = self.current_token
+        param_list = []
+
+        if nToken.Compare(self.current_token, TokenType.LPAREN):# parse parameters
+            self.eat(TokenType.LPAREN)
+            if nToken.Compare(self.current_token, TokenType.RPAREN) == False:
+                param_list = self.formal_parameter_list()
+            self.eat(TokenType.RPAREN)                  # complete parsing parameters
+        else:
+            return ret
+        
+        decoreate_type = self.decoreated_type_sepc(None)
+  
+        self.eat(TokenType.RIGHT_ARROW)
+        return_type = self.type_spec()
+ 
+
+        ret = AST.CallableProtocal(paran_token, param_list, return_type)
+        
+        if decoreate_type != None:
+            while decoreate_type.nested_type != None:
+                decoreate_type = decoreate_type.nested_type
+            decoreate_type.nested_type = ret
+            ret = decoreate_type
+        
+        return ret
 
     def array_range_spec(self):
         dim_size_expr_list = []
@@ -465,7 +506,7 @@ class Parser(object):
         return dim_size_expr_list
 
     #return a pair, pair.first => [formal_parameter], pair.second => return type of the callable:AST.Type
-    def callable_type_spec(self):
+    def procedure_type_spec(self):
         param_list = []
         if nToken.Compare(self.current_token, TokenType.LPAREN):# parse parameters
             self.eat(TokenType.LPAREN)
@@ -577,25 +618,25 @@ class Parser(object):
         param_list = None
         return_type = None
 
-        param_list, return_type = self.callable_type_spec()
+        paran_token = self.current_token
+        param_list, return_type = self.procedure_type_spec()
         
         if nToken.Compare(self.current_token, TokenType.COLON): 
             self.eat(TokenType.COLON)
             block_node = self.block()
             self.eat(TokenType.SEMI)
-            return AST.ProcedureDecl(procedure_name, param_list, return_type, block_node)
+            return AST.ProcedureDecl(procedure_name, AST.CallableProtocal(paran_token, param_list, return_type), block_node)
         else: #just a declaration of procedure
             self.eat(TokenType.SEMI)
-            return AST.ProcedureDecl(procedure_name, param_list, return_type, None)
+            return AST.ProcedureDecl(procedure_name, AST.CallableProtocal(paran_token, param_list, return_type), None)
 
 
-
-    def proccall_statement(self):
-        """proccall_statement : ID LPAREN (expr (COMMA expr)*)? RPAREN"""
+    def call_invoked_statement(self):
+        """call_invoked_statement : ID LPAREN (expr (COMMA expr)*)? RPAREN"""
         token = self.current_token
 
-        proc_name = self.current_token.value
-        self.eat(TokenType.IDENTIFIER)
+        access_name = self.current_token.value
+        callee_src = self.variable()
         self.eat(TokenType.LPAREN)
         actual_params = []
         while nToken.Compare(self.current_token, TokenType.RPAREN) == False:
@@ -606,8 +647,9 @@ class Parser(object):
                 break
         self.eat(TokenType.RPAREN)
 
-        node = AST.ProcedureCall(
-            proc_name=proc_name,
+        node = AST.CallInvoked(
+            access_name=access_name,
+            callee_src=callee_src,
             actual_params=actual_params,
             token=token,
         )
@@ -659,7 +701,7 @@ class Parser(object):
         return node
 
     def program(self):
-        """program : PROGRAM variable SEMI block DOT"""
+        """program : PROGRAM variable SEMI block DOT declarations"""
         self.eat(TokenType.PROGRAM)
         node = self.variable()
         self.eat(TokenType.SEMI)
@@ -694,7 +736,7 @@ class Parser(object):
 
 
     statement : compound_statement
-                | proccall_statement
+                | call_invoked_statement
                 | assignment_statement
                 | variable_declaration
                 | return (expr)*

@@ -9,6 +9,7 @@ class ValueNode(AST):
     type_descriptor:nTDS.TypeDescriptor
     def __init__(self, type_descriptor = None):
         self.type_descriptor = type_descriptor
+        self.var_offset = 0
 
 class BinOp(ValueNode):
     def __init__(self, left, op, right):
@@ -90,7 +91,7 @@ class Assign(AST):
         self.right = right
 
 
-class Var(AST):
+class Var(ValueNode):
     """The Var node is constructed out of ID token."""
     def __init__(self, token, assign_method = None):
         self.token = token
@@ -99,37 +100,24 @@ class Var(AST):
         #assign to this or from this var
         self.assign_method = assign_method
         self.access_method = None
-        self.var_offset = 0
+
+class RefVar(ValueNode):
+    def __init__(self, token):
+        self.token = token
+        # value is the name of this varriable
+        self.value = token.value
+
 
 class Type(AST):
     type_descriptor = None
-    def __init__(self, token:nToken.Token, dimension_size_expr_list, nested_type):
+    def __init__(self, token:nToken.Token):
         self.token = token
         self.value = token.value
-        self.dimension_size_expr_list = dimension_size_expr_list
-        if nToken.Compare(self.token, nToken.TokenType.INTEGER):
-            self.type_descriptor = nTDS.TypeDescriptor(self.value, nTDS.TypeDescriptor.TypeClass.INTEGER)
-        elif nToken.Compare(self.token, nToken.TokenType.REAL):
-            self.type_descriptor = nTDS.TypeDescriptor(self.value, nTDS.TypeDescriptor.TypeClass.REAL)
-        elif nToken.Compare(self.token, nToken.TokenType.BOOL):
-            self.type_descriptor = nTDS.TypeDescriptor(self.value, nTDS.TypeDescriptor.TypeClass.BOOL)
-        elif nToken.Compare(self.token, nToken.TokenType.VOID):
-            self.type_descriptor = nTDS.TypeDescriptor(self.value, nTDS.TypeDescriptor.TypeClass.VOID)            
-        elif nToken.Compare(self.token, nToken.TokenType.CHAR):
-            self.type_descriptor = nTDS.TypeDescriptor(self.value, nTDS.TypeDescriptor.TypeClass.CHAR)
-        elif nToken.Compare(self.token, nToken.TokenType.STRING):
-            self.type_descriptor = nTDS.TypeDescriptor(self.value, nTDS.TypeDescriptor.TypeClass.STRING)     
-        elif nToken.Compare(self.token, nToken.TokenType.REFERNECE):
-            self.type_descriptor = nTDS.TypeDescriptor(self.value, nTDS.TypeDescriptor.TypeClass.REFERENCE)
-        else:
-            self.type_descriptor = nTDS.TypeDescriptor(self.value)
-        
-        self.nested_type = nested_type
-        
-        if self.type_descriptor.is_reference() == True:
-            ref_type_descriptor = nTDS.TypeDescriptor(self.type_string(), nTDS.TypeDescriptor.TypeClass.REFERENCE)
-            ref_type_descriptor.nested_type_descriptor = nested_type.type_descriptor
-            self.type_descriptor = ref_type_descriptor
+        self.dimension_size_expr_list = []
+        self.nested_type = None
+    
+    def is_callable(self)->bool:
+        return False
 
     def type_string(self)->str:
         arr_prefix = ""
@@ -148,6 +136,31 @@ class Type(AST):
         while t.nested_type != None:
             t = t.nested_type
         return t.value
+
+
+class Param(AST):
+    def __init__(self, var_node, type_node):
+        self.var_node = var_node
+        self.type_node = type_node
+
+
+class CallableProtocal(Type):
+    def __init__(self, token, para_node, return_type_node:Type):
+        super().__init__(token)
+        self.para_node_ = para_node  # list[Param]
+        self.return_type_node_ = return_type_node
+
+    def is_callable(self)->bool:
+        return True
+
+    def para_node(self):
+        return self.para_node_
+
+    def return_type_node(self):
+        return self.return_type_node_
+
+    def symbol_string(self)->str:
+        return ""
 
 class EnumDecl(ValueNode):
     def __init__(self, token:nToken.Token, member_pair_list):
@@ -217,37 +230,37 @@ class Control_flow_statement(AST):
         self.type = type
         self.return_val = return_val
 
-class Param(AST):
-    def __init__(self, var_node, type_node):
-        self.var_node = var_node
-        self.type_node = type_node
+
 
 class ProcedureDecl(AST):
-    def __init__(self, proc_name:Var, para_node, return_type_node, block_node):
+    def __init__(self, proc_name:Var, protocal:CallableProtocal, block_node):
         self.token = proc_name.token
         self.proc_name = proc_name.value
-        self.para_node = para_node  # list[Param]
-        self.return_type_node = return_type_node
+        self.protocal = protocal
         self.block_node = block_node
+
+    def para_node(self):
+        return self.protocal.para_node()
+    
+    def return_type_node(self):
+        return self.protocal.return_type_node()
 
     def is_defined(self)->bool:
         return self.block_node != None
 
 
-class ProcedureCall(ValueNode):
-    def __init__(self, proc_name, actual_params, token):
+class CallInvoked(ValueNode):
+    def __init__(self, access_name, callee_src, actual_params, token):
         super().__init__()
-        self.proc_name = proc_name
+        self.access_name = access_name
+        self.callee_src = callee_src
         self.actual_params = actual_params  # a list of AST nodes
         self.token = token
-        self.ref_procedure = None
         
-
 
 class Program(AST):
     def __init__(self, node:Var, block_node, declarations:Declarations):
         self.token = node.token
         self.name = node.token.value
         self.block_node = block_node
-        self.ref_procedure = None
         self.declarations = declarations
