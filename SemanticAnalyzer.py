@@ -693,21 +693,21 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
                 params.append(var_symbol)
                 assign_methods.append(define_type_aassignd_method(var_symbol.type_descriptor(), True))
    
-            proc_symbol.params = params
-            proc_symbol.assign_methods = assign_methods
+            targ_proc_symbol.params = params
+            targ_proc_symbol.assign_methods = assign_methods
 
             
-            if targ_proc_symbol.is_defined():
+            if proc_symbol.is_defined():
+                targ_proc_symbol.set_definition(node.block_node, node.token)
                 self.visit(targ_proc_symbol.block_node)
                 targ_proc_symbol.max_var_count = self.current_scope.max_var_count
 
         
         if targ_proc_symbol == None:          
-            targ_proc_symbol = proc_symbol
             scp = self.get_global_scope()
-            scp.insert(proc_symbol)
             targ_proc_symbol = alloc_proc_symbol(scp, proc_name, False, tds)
-            #targ_proc_symbol = scp.add_alloc_sym(targ_proc_symbol)
+            
+            scp.insert(targ_proc_symbol)
             expr_info = nEVEXPR.EvalExprInfo(nTDS.TypeDescriptor(nToken.TokenType.PROCEDURE.name, nTDS.TypeDescriptor.TypeClass.CallAble), False, targ_proc_symbol)
             info = nINIT_DI.InitializedDataInfo(proc_name, targ_proc_symbol.var_offset, expr_info, None)
             self.allocated_sym_list.append(info)
@@ -727,8 +727,8 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
         
         if access_symbol == None:
             self.error(error_code=nError.ErrorCode.ID_NOT_FOUND, token=node.token)
-        if len(access_symbol.params) != len(node.actual_params):
-            self.error(error_code=nError.ErrorCode.PRAR_COUNT_NOT_MATCHED, token=node.token)
+        #if len(access_symbol.params) != len(node.actual_params):
+        #    self.error(error_code=nError.ErrorCode.PRAR_COUNT_NOT_MATCHED, token=node.token)
         
         self.visit(node.callee_src)
 
@@ -771,13 +771,10 @@ class SemanticAnalyzer(nNodeVisitor.NodeVisitor):
 
         prog_name = node.name
 
-        prog_symbol = Symbol.ProcSymbol(prog_name,
-                                        global_scope.scope_level != ScopedSymbolTable.global_scope_level,
-                                        always_return_int.type_descriptor)
+        prog_symbol =  alloc_proc_symbol(global_scope, prog_name, False, always_return_int.type_descriptor)
         
         prog_symbol.set_definition(node.block_node, node.token)
 
-        prog_symbol =  alloc_proc_symbol(global_scope, prog_name, False, always_return_int)
         node.var_offset = prog_symbol.var_offset
 
         expr_info = nEVEXPR.EvalExprInfo(nTDS.TypeDescriptor(nToken.TokenType.PROGRAM.name, nTDS.TypeDescriptor.TypeClass.CallAble), False, prog_symbol)

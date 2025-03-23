@@ -91,17 +91,36 @@ class Lexer(object):
             return Token(TokenType.INTEGER.name, int(val))
     
     def skip_comment(self):
-        self.advance()  # skip '{'
-        
+        # skip "/*"
+        self.advance()  
+        self.advance()
+
+        while self.current_char != None \
+            and not (self.current_char == '*' and self.overlook(1) == '/') \
+            and not (self.current_char == '/' and self.overlook(1) == '*'):
+            self.advance()
+
+
+
+        """
         while self.current_char != '}' \
               and self.current_char != None \
               and self.current_char != '{':
-            self.advance()
+            self.advance() """
 
-        if self.current_char != '}':
+        if not (self.current_char == '*' and self.overlook(1) == '/'):
             self.error()
 
-        self.advance() # skip '}'
+        """
+        if self.current_char != '}':
+            self.error() """
+
+        #self.advance() # skip '}'
+
+        # skip "*/"
+        self.advance()  
+        self.advance()
+
 
     def get_next_token(self):
         """Lexical analyzer (also known as scanner or tokenizer)
@@ -115,7 +134,7 @@ class Lexer(object):
             if self.current_char.isspace():
                 self.advance()
                 continue
-            elif self.current_char == '{':
+            elif self.current_char == '/' and self.overlook(1) == '*':
                 self.skip_comment()
                 continue
             else:
