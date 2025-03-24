@@ -49,8 +49,6 @@ class VarSymbol(ReferableSymbol):
 class CallableSymbol(ReferableSymbol):
     def __init__(self, name, is_on_stack_symbol:bool, type_descriptor:nTDS.TypeDescriptor):
         super().__init__(name, is_on_stack_symbol, type_descriptor)
-        # params is a list of symbol of the parameters
-        self.params = []
         self.assign_methods = []
 
     def return_type_descriptor(self):
